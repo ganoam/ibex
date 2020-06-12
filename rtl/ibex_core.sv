@@ -714,7 +714,7 @@ module ibex_core #(
   ibex_wb_stage #(
     .WritebackStage ( WritebackStage )
   ) wb_stage_i (
-    .clk_i                      ( clk_i                    ),
+    .clk_i                      ( clk                      ),
     .rst_ni                     ( rst_ni                   ),
     .en_wb_i                    ( en_wb                    ),
     .instr_type_wb_i            ( instr_type_wb            ),
@@ -749,7 +749,7 @@ module ibex_core #(
       .DataWidth         (32),
       .DummyInstructions (DummyInstructions)
   ) register_file_i (
-      .clk_i            ( clk_i          ),
+      .clk_i            ( clk            ),
       .rst_ni           ( rst_ni         ),
 
       .test_en_i        ( test_en_i      ),
