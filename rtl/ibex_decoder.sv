@@ -60,13 +60,15 @@ module ibex_decoder #(
     output logic [31:0]           zimm_rs1_type_o,
 
     // register file
-    output ibex_pkg::rf_wd_sel_e rf_wdata_sel_o,   // RF write data selection
-    output logic                 rf_we_o,          // write enable for regfile
+    output ibex_pkg::rf_sel_e    rf_sel_o,              // RF selection (FPU / common)
+    output ibex_pkg::rf_wd_sel_e rf_wdata_sel_o,        // RF write data selection
+    output logic                 rf_we_o,               // write enable for regfile
     output logic [4:0]           rf_raddr_a_o,
     output logic [4:0]           rf_raddr_b_o,
     output logic [4:0]           rf_waddr_o,
-    output logic                 rf_ren_a_o,          // Instruction reads from RF addr A
-    output logic                 rf_ren_b_o,          // Instruction reads from RF addr B
+    output logic                 rf_ren_a_o,            // Instruction reads from RF addr A
+    output logic                 rf_ren_b_o,            // Instruction reads from RF addr B
+
 
     // ALU
     output ibex_pkg::alu_op_e    alu_operator_o,        // ALU operation selection
@@ -103,6 +105,7 @@ module ibex_decoder #(
 );
 
   import ibex_pkg::*;
+  import fpnew_pkg::*;
 
   logic        illegal_insn;
   logic        illegal_reg_rv32e;
@@ -184,6 +187,7 @@ module ibex_decoder #(
     multdiv_operator_o    = MD_OP_MULL;
     multdiv_signed_mode_o = 2'b00;
 
+    rf_sel_o              = RF_COMMON;
     rf_wdata_sel_o        = RF_WD_EX;
     rf_we                 = 1'b0;
     rf_ren_a_o            = 1'b0;
@@ -307,6 +311,41 @@ module ibex_decoder #(
           end
         endcase
       end
+
+      OPCODE_STORE_FP: begin
+        rf_sel_o           = RF_FPU;
+        rf_ren_a_o         = 1'b1;
+        rf_ren_b_o         = 1'b1;
+        data_req_o         = 1'b1;
+        data_we_o          = 1'b1;
+
+        if (instr[14:12] != 3'b010) begin
+          illegal_insn = 1'b1;
+        end
+
+        // store size
+        data_type_o  = 2'b00; // sw
+
+      end
+
+      OPCODE_LOAD_FP: begin
+        rf_sel_o            = RF_FPU;
+        rf_ren_a_o          = 1'b1;
+        data_req_o          = 1'b1;
+
+        if (instr[14:13] != 3'b010) begin
+          illegal_insn = 1'b1;
+        end
+
+        // load size
+        data_type_o  = 2'b00; // lw
+
+      end
+
+      /////////
+      // FPU //
+      /////////
+
 
       /////////
       // ALU //

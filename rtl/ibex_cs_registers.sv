@@ -188,6 +188,8 @@ module ibex_cs_registers #(
   logic [31:0] depc_q, depc_d;
   logic [31:0] dscratch0_q, dscratch0_d;
   logic [31:0] dscratch1_q, dscratch1_d;
+  logic [31:0] fcsr_q, fcsr_d;
+
 
   // CSRs for recoverable NMIs
   // NOTE: these CSRS are nonstandard, see https://github.com/riscv/riscv-isa-manual/issues/261
@@ -431,6 +433,18 @@ module ibex_cs_registers #(
         csr_rdata_int = '0;
       end
 
+      CSR_FFLAGS: begin
+        csr_rdata_int = {27'h0, fcsr_q[4:0]};
+      end
+
+      CSR_FRM: begin
+        csr_rdata_int = {29'h0, fcsr_q[7:5]};
+      end
+
+      CSR_FCSR: begin
+        csr_rdata_int = {24'h0, fcsr_q[7:0]};
+      end
+
       default: begin
         illegal_csr = 1'b1;
       end
@@ -453,6 +467,7 @@ module ibex_cs_registers #(
     depc_d       = depc_q;
     dscratch0_d  = dscratch0_q;
     dscratch1_d  = dscratch1_q;
+    fcsr_d       = fcsr_q;
 
     mstack_d       = mstack_q;
     mstack_epc_d   = mstack_epc_q;
@@ -557,6 +572,10 @@ module ibex_cs_registers #(
         CSR_MHPMCOUNTER28H, CSR_MHPMCOUNTER29H, CSR_MHPMCOUNTER30H, CSR_MHPMCOUNTER31H: begin
           mhpmcounterh_we[mhpmcounter_idx] = 1'b1;
         end
+
+        CSR_FFLAGS: fcsr_d = {24'h0, csr_wdata_int[4:0], fcsr_q[4:0]};
+        CSR_FRM:    fcsr_d = {24'h0, fcsr_q[7:5], csr_wdata_int[2:0]};
+        CSR_FCSR:   fcsr_d = {24'h0, csr_wdata[7:0]};
 
         default:;
       endcase
@@ -702,6 +721,7 @@ module ibex_cs_registers #(
       };
       mstack_epc_q   <= '0;
       mstack_cause_q <= '0;
+      fcsr_q         <= '0;
 
     end else begin
       // update CSRs
@@ -721,6 +741,7 @@ module ibex_cs_registers #(
       mstack_q       <= mstack_d;
       mstack_epc_q   <= mstack_epc_d;
       mstack_cause_q <= mstack_cause_d;
+      fcsr_q         <= fcsr_d;
 
     end
   end

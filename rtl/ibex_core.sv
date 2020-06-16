@@ -758,6 +758,29 @@ module ibex_core #(
       .we_a_i           ( rf_we_wb       )
   );
 
+
+  ibex_fpu_register_file #(
+      .DataWidth         (32),
+  ) register_file_i (
+      .clk_i            ( clk            ),
+      .rst_ni           ( rst_ni         ),
+
+      .test_en_i        ( test_en_i      ),
+
+      // Read port a
+      .raddr_a_i        ( rf_raddr_a     ),
+      .rdata_a_o        ( rf_rdata_a     ),
+      // Read port b
+      .raddr_b_i        ( rf_raddr_b     ),
+      .rdata_b_o        ( rf_rdata_b     ),
+      // write port
+      .waddr_a_i        ( rf_waddr_wb    ),
+      .wdata_a_i        ( rf_wdata_wb    ),
+      .we_a_i           ( rf_we_wb       )
+  );
+
+
+
   // Explict INC_ASSERT block to avoid unused signal lint warnings were asserts are not included
   `ifdef INC_ASSERT
   // Signals used for assertions only

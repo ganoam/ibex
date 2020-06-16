@@ -215,6 +215,57 @@ module ibex_ex_block #(
     );
   end
 
+
+  logic [31:0][2:0]        fp_operands;
+  fpnew_pkg::roundmode_e   fp_rnd_mode;
+  fpnew_pkt::operation_e   fp_op;
+  logic                    fp_op_mod;
+  fpnew_pkg::fp_format_e   fp_src_fmt;
+  fpnew_pkg::fp_format_e   fp_dst_fmt;
+  fpnew_pkg::int_format_e  fp_int_fmt;
+  //logic                    fp_vectorial_op;
+  //logic                    fp_in_tag;
+  logic                    fp_in_valid;
+  logic                    fp_in_ready;
+  logic                    fp_flush;
+  logic [31:0]             fp_result;
+  fpnew_pkg::status_t      fp_status;
+  //logic                    fp_out_tag;
+  logic                    fp_out_valid;
+  logic                    fp_out_ready;
+  logic                    fp_busy;
+
+  fpnew_top #        (
+    .Features        ( fpnew_pkg::RV32F          ),
+    .Implementation  ( fpnew_pkg::DEFAULT_NOREGS ),
+    .TagType         ( logic                     )
+  ) fpnew_i (
+    .clk_i           ( clk_i           ),
+    .rst_ni          ( rst_ni          ),
+    .operands_i      ( fp_operands     ),
+    .rnd_mode_i      ( fp_rnd_mode     ),
+    .op_i            ( fp_op           ),
+    .op_mod_i        ( fp_op_mod       ),
+    .src_fmt_i       ( '0      ), // fp_pkg::fp_fomrat_e.FP32
+    .dst_fmt_i       ( '0      ), // fp_pkg::fp_fomrat_e.FP32
+    .int_fmt_i       ( '0      ),
+    .verctorial_op_i ( 1'b0            ),
+    .tag_i           ( 1'b0            ),
+    .in_valid_i      ( fp_in_valid     ),
+    .in_ready_o      ( fp_in_ready     ),
+    .flush_i         ( fp_flush        ),
+    .result_o        ( fp_result       ),
+    .status_o        ( fp_status       ),
+    .tag_o           ( 1'b0            ),
+    .out_valid_o     ( fp_out_valid    ),
+    .out_ready_i     ( fp_out_ready    ),
+    .busy_o          ( fp_busy         )
+  );
+
+
+
+
+
   // Multiplier/divider may require multiple cycles. The ALU output is valid in the same cycle
   // unless the intermediate result register is being written (which indicates this isn't the
   // final cycle of ALU operation).

@@ -24,7 +24,14 @@ typedef enum logic [6:0] {
   OPCODE_BRANCH   = 7'h63,
   OPCODE_JALR     = 7'h67,
   OPCODE_JAL      = 7'h6f,
-  OPCODE_SYSTEM   = 7'h73
+  OPCODE_SYSTEM   = 7'h73,
+  OPCODE_LOAD_FP  = 7'h07,
+  OPCODE_STORE_FP = 7'h27,
+  OPCODE_FMADD    = 7'h43,
+  OPCODE_FMSUB    = 7'h47,
+  OPCODE_FNMSUB   = 7'h4b,
+  OPCODE_FNMADD   = 7'h4f,
+  OPCODE_OP_FP    = 7'h53
 } opcode_e;
 
 
@@ -219,6 +226,18 @@ typedef enum logic {
   RF_WD_EX,
   RF_WD_CSR
 } rf_wd_sel_e;
+
+// Regfile entity selection
+typedef enum logic {
+  RF_COMMON,
+  RF_FPU
+} rf_sel_e;
+
+/////////
+// FPU //
+/////////
+
+// More FPU parameters in vendor/pulp-platform/fpnew
 
 //////////////
 // IF stage //
@@ -457,8 +476,14 @@ typedef enum logic[11:0] {
   CSR_MHPMCOUNTER30H = 12'hB9E,
   CSR_MHPMCOUNTER31H = 12'hB9F,
   CSR_CPUCTRL        = 12'h7C0,
-  CSR_SECURESEED     = 12'h7C1
+  CSR_SECURESEED     = 12'h7C1,
+
+  // User Floating-Point CSRs
+  CSR_FFLAGS         = 12'h001,
+  CSR_FRM            = 12'h002,
+  CSR_FCSR           = 12'h003
 } csr_num_e;
+
 
 // CSR pmp-related offsets
 parameter logic [11:0] CSR_OFF_PMP_CFG  = 12'h3A0; // pmp_cfg  @ 12'h3a0 - 12'h3a3
