@@ -140,12 +140,12 @@ module ibex_cs_registers #(
     priv_lvl_e mpp;
     logic      mprv;
     logic      tw;
-  } Status_t;
+  } status_t;
 
   typedef struct packed {
     logic      mpie;
     priv_lvl_e mpp;
-  } StatusStk_t;
+  } status_stk_t;
 
   typedef struct packed {
       x_debug_ver_e xdebugver;
@@ -163,7 +163,7 @@ module ibex_cs_registers #(
       logic         nmip;
       logic         step;
       priv_lvl_e    prv;
-  } Dcsr_t;
+  } dcsr_t;
 
   // CPU control register fields
   typedef struct packed {
@@ -172,14 +172,14 @@ module ibex_cs_registers #(
     logic        dummy_instr_en;
     logic        data_ind_timing;
     logic        icache_enable;
-  } CpuCtrl_t;
+  } cpu_ctrl_t;
 
   // Interrupt and exception control signals
   logic [31:0] exception_pc;
 
   // CSRs
   priv_lvl_e   priv_lvl_q, priv_lvl_d;
-  Status_t     mstatus_q, mstatus_d;
+  status_t     mstatus_q, mstatus_d;
   irqs_t       mie_q, mie_d;
   logic [31:0] mscratch_q, mscratch_d;
   logic [31:0] mepc_q, mepc_d;
@@ -187,7 +187,7 @@ module ibex_cs_registers #(
   logic [31:0] mtval_q, mtval_d;
   logic [31:0] mtvec_q, mtvec_d;
   irqs_t       mip;
-  Dcsr_t       dcsr_q, dcsr_d;
+  dcsr_t       dcsr_q, dcsr_d;
   logic [31:0] depc_q, depc_d;
   logic [31:0] dscratch0_q, dscratch0_d;
   logic [31:0] dscratch1_q, dscratch1_d;
@@ -199,7 +199,7 @@ module ibex_cs_registers #(
 
   // CSRs for recoverable NMIs
   // NOTE: these CSRS are nonstandard, see https://github.com/riscv/riscv-isa-manual/issues/261
-  StatusStk_t  mstack_q, mstack_d;
+  status_stk_t mstack_q, mstack_d;
   logic [31:0] mstack_epc_q, mstack_epc_d;
   logic  [5:0] mstack_cause_q, mstack_cause_d;
 
@@ -229,7 +229,7 @@ module ibex_cs_registers #(
   logic [31:0] tmatch_value_rdata;
 
   // CPU control bits
-  CpuCtrl_t    cpuctrl_rdata, cpuctrl_wdata;
+  cpu_ctrl_t   cpuctrl_rdata, cpuctrl_wdata;
 
   // CSR update logic
   logic [31:0] csr_wdata_int;
@@ -719,7 +719,7 @@ module ibex_cs_registers #(
       mepc_q         <= '0;
       mcause_q       <= '0;
       mtval_q        <= '0;
-      mtvec_q        <= 32'b01;
+      mtvec_q        <= 32'h0000_0001;
       dcsr_q         <= '{
           xdebugver: XDEBUGVER_STD,
           cause:     DBG_CAUSE_NONE, // 3'h0
@@ -1093,7 +1093,7 @@ module ibex_cs_registers #(
   // CPU control fields
   assign cpuctrl_rdata.unused_ctrl = '0;
   // Cast register write data
-  assign cpuctrl_wdata = CpuCtrl_t'(csr_wdata_int);
+  assign cpuctrl_wdata = cpu_ctrl_t'(csr_wdata_int);
 
   // Generate fixed time execution bit
   if (DataIndTiming) begin : gen_dit
