@@ -151,6 +151,7 @@ module ibex_core #(
   logic [31:0] dummy_instr_seed;
   logic        icache_enable;
   logic        icache_inval;
+  logic        pc_mismatch_alert;
 
   logic        instr_first_cycle_id;
   logic        instr_valid_clear;
@@ -400,7 +401,8 @@ module ibex_core #(
       .DmExceptionAddr   ( DmExceptionAddr   ),
       .DummyInstructions ( DummyInstructions ),
       .ICache            ( ICache            ),
-      .ICacheECC         ( ICacheECC         )
+      .ICacheECC         ( ICacheECC         ),
+      .SecureIbex        ( SecureIbex        )
   ) if_stage_i (
       .clk_i                    ( clk                    ),
       .rst_ni                   ( rst_ni                 ),
@@ -458,6 +460,7 @@ module ibex_core #(
       // pipeline stalls
       .id_in_ready_i            ( id_in_ready            ),
 
+      .pc_mismatch_alert_o      ( pc_mismatch_alert      ),
       .if_busy_o                ( if_busy                )
   );
 
@@ -853,7 +856,7 @@ module ibex_core #(
   assign alert_minor_o = 1'b0;
 
   // Major alert - core is unrecoverable
-  assign alert_major_o = rf_ecc_err_comb;
+  assign alert_major_o = rf_ecc_err_comb | pc_mismatch_alert;
 
   `ASSERT_KNOWN(IbexAlertMinorX, alert_minor_o)
   `ASSERT_KNOWN(IbexAlertMajorX, alert_major_o)
