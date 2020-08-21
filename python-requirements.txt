@@ -17,4 +17,4 @@ mistletoe>=0.7.2
 premailer
 
 # Recurse to get any requirements from riscv-dv
--r vendor/google_riscv-dv/requirements.txt
+#-r vendor/google_riscv-dv/requirements.txt

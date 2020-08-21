@@ -9,9 +9,11 @@ filesets:
     depend:
       - lowrisc:ibex:ibex_core_tracing
       - lowrisc:ibex:sim_shared
+      - ">=vlog_tb_utils-1.0"
     files:
       - rtl/ibex_simple_system.sv
     file_type: systemVerilogSource
+
 
   files_verilator:
     depend:
@@ -149,6 +151,8 @@ targets:
     <<: *default_target
     default_tool: verilator
     tools:
+      modelsim:
+        vlog_options: [-timescale=1ns/1ns]
       vcs:
         vcs_options:
           - '-xlrm uniq_prior_final'

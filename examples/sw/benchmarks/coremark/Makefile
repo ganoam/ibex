@@ -17,3 +17,4 @@ all:
 
 clean:
 	$(MAKE) -C $(COREMARK_DIR) clean
+	rm *.bin  *.vmem

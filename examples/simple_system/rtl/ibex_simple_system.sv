@@ -125,6 +125,26 @@ module ibex_simple_system (
     end
   `endif
 
+  string filename = "simple_system_pcount.csv";
+  int f;
+  final begin
+    // Read out Performance counters
+    f=$fopen(filename, "w");
+    $fwrite(f, "mcycle,%0d\n",mhpmcounter_get(0));
+    $fwrite(f, "minstret,%0d\n",mhpmcounter_get(2));
+    $fwrite(f, "LSU Busy,%0d\n",mhpmcounter_get(3));
+    $fwrite(f, "IFetch wait,%0d\n",mhpmcounter_get(4));
+    $fwrite(f, "Loads,%0d\n",mhpmcounter_get(5));
+    $fwrite(f, "Stores,%0d\n",mhpmcounter_get(6));
+    $fwrite(f, "Jumps,%0d\n",mhpmcounter_get(7));
+    $fwrite(f, "Branches,%0d\n",mhpmcounter_get(8));
+    $fwrite(f, "Taken Branches,%0d\n",mhpmcounter_get(9));
+    $fwrite(f, "Compressed Instructions,%0d\n",mhpmcounter_get(10));
+    $fwrite(f, "Multiply Wait,%0d\n",mhpmcounter_get(11));
+    $fwrite(f, "Divide Wait,%0d\n",mhpmcounter_get(12));
+    $fclose(f);
+  end
+
   // Tie-off unused error signals
   assign device_err[Ram] = 1'b0;
   assign device_err[SimCtrl] = 1'b0;
@@ -276,6 +296,16 @@ module ibex_simple_system (
       .timer_err_o    (device_err[Timer]),
       .timer_intr_o   (timer_irq)
     );
+
+  // VCD DUMP
+
+  initial begin
+    $dumpon;
+  end
+  final begin
+    $dumpoff;
+  end
+
 
   export "DPI-C" function mhpmcounter_get;
 
