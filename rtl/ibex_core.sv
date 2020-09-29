@@ -28,6 +28,7 @@ module ibex_core #(
     parameter bit                 ICacheECC        = 1'b0,
     parameter bit                 BranchPredictor  = 1'b0,
     parameter bit                 DbgTriggerEn     = 1'b0,
+    parameter int unsigned        DbgHwBreakNum    = 1,
     parameter bit                 SecureIbex       = 1'b0,
     parameter int unsigned        DmHaltAddr       = 32'h1A110800,
     parameter int unsigned        DmExceptionAddr  = 32'h1A110808
@@ -963,6 +964,7 @@ module ibex_core #(
 
   ibex_cs_registers #(
       .DbgTriggerEn      ( DbgTriggerEn      ),
+      .DbgHwBreakNum     ( DbgHwBreakNum     ),
       .DataIndTiming     ( DataIndTiming     ),
       .DummyInstructions ( DummyInstructions ),
       .ICache            ( ICache            ),
