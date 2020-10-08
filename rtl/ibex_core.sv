@@ -114,6 +114,7 @@ module ibex_core #(
   localparam int unsigned PMP_NUM_CHAN      = 2;
   localparam bit          DataIndTiming     = SecureIbex;
   localparam bit          DummyInstructions = SecureIbex;
+  localparam bit          PCIncrCheck       = SecureIbex;
   // Speculative branch option, trades-off performance against timing.
   // Setting this to 1 eases branch target critical paths significantly but reduces performance
   // by ~3% (based on CoreMark/MHz score).
@@ -401,7 +402,7 @@ module ibex_core #(
       .DummyInstructions ( DummyInstructions ),
       .ICache            ( ICache            ),
       .ICacheECC         ( ICacheECC         ),
-      .SecureIbex        ( SecureIbex        ),
+      .PCIncrCheck       ( PCIncrCheck       ),
       .BranchPredictor   ( BranchPredictor   )
   ) if_stage_i (
       .clk_i                    ( clk                    ),
@@ -1442,5 +1443,8 @@ module ibex_core #(
   end
 
 `endif
+
+  // Certain parameter combinations are not supported
+  `ASSERT_INIT(IllegalParamSecure, !(SecureIbex && (RV32M == RV32MNone)))
 
 endmodule
