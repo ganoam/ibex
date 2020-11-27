@@ -34,7 +34,8 @@
  * to the one produced by objdump. This simplifies the correlation between the static program
  * information from the objdump-generated disassembly, and the runtime information from this tracer.
  */
-module ibex_tracer (
+module ibex_tracer #(
+  parameter trace_core_prefix = "trace_core" ) (
   input logic        clk_i,
   input logic        rst_ni,
 
@@ -111,7 +112,7 @@ module ibex_tracer (
     string rvfi_insn_str;
 
     if (file_handle == 32'h0) begin
-      string file_name_base = "trace_core";
+      string file_name_base = trace_core_prefix;
       $value$plusargs("ibex_tracer_file_base=%s", file_name_base);
       $sformat(file_name, "%s_%h.log", file_name_base, hart_id_i);
 

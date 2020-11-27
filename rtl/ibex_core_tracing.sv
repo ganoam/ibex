@@ -25,7 +25,8 @@ module ibex_core_tracing #(
     parameter int unsigned        DbgHwBreakNum    = 1,
     parameter bit                 SecureIbex       = 1'b0,
     parameter int unsigned        DmHaltAddr       = 32'h1A110800,
-    parameter int unsigned        DmExceptionAddr  = 32'h1A110808
+    parameter int unsigned        DmExceptionAddr  = 32'h1A110808,
+    parameter                     trace_core_prefix           = "trace_core"
 ) (
     // Clock and Reset
     input  logic        clk_i,
@@ -188,8 +189,9 @@ module ibex_core_tracing #(
     .core_sleep_o
   );
 
-  ibex_tracer
-  u_ibex_tracer (
+  ibex_tracer #(
+    .trace_core_prefix(trace_core_prefix)
+  ) u_ibex_tracer  (
     .clk_i,
     .rst_ni,
 

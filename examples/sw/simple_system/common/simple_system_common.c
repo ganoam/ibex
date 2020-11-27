@@ -126,11 +126,11 @@ unsigned int get_mcause() {
   return result;
 }
 
-unsigned int get_mtval() {
-  uint32_t result;
-  __asm__ volatile("csrr %0, mtval;" : "=r"(result));
-  return result;
-}
+//unsigned int get_mtval() {
+  //uint32_t result;
+  //__asm__ volatile("csrr %0, mtval;" : "=r"(result));
+  //return result;
+//}
 
 void simple_exc_handler(void) {
   puts("EXCEPTION!!!\n");
@@ -139,8 +139,8 @@ void simple_exc_handler(void) {
   puthex(get_mepc());
   puts("\nMCAUSE: 0x");
   puthex(get_mcause());
-  puts("\nMTVAL:  0x");
-  puthex(get_mtval());
+  //puts("\nMTVAL:  0x");
+  //puthex(get_mtval());
   putchar('\n');
   sim_halt();
 
@@ -191,7 +191,26 @@ uint64_t get_elapsed_time(void) { return time_elapsed; }
 
 void simple_timer_handler(void) __attribute__((interrupt));
 
+// modified due to pulp compilers error: No function calls in interrupt handler
 void simple_timer_handler(void) {
-  increment_timecmp(time_increment);
+  // increment_timecmp(time_increment)
+  // timer_read()
+  uint32_t current_timeh;
+  uint32_t current_time;
+  // check if time overflowed while reading and try again
+  do {
+    current_timeh = DEV_READ(TIMER_BASE + TIMER_MTIMEH, 0);
+    current_time = DEV_READ(TIMER_BASE + TIMER_MTIME, 0);
+  } while (current_timeh != DEV_READ(TIMER_BASE + TIMER_MTIMEH, 0));
+  uint64_t final_time = ((uint64_t)current_timeh << 32) | current_time;
+  // end timer_read()
+  final_time += time_increment;
+  // timecmp_update(final_time)
+  DEV_WRITE(TIMER_BASE + TIMER_MTIMECMP, -1);
+  DEV_WRITE(TIMER_BASE + TIMER_MTIMECMPH, final_time >> 32);
+  DEV_WRITE(TIMER_BASE + TIMER_MTIMECMP, final_time);
+  // end time_cmp_update(final_time)
+  // end increment_timecmp(time_increment)
+
   time_elapsed++;
 }
