@@ -22,8 +22,7 @@ ibex:
     rtl/ibex_fetch_fifo.sv,
     rtl/ibex_pmp.sv,
     rtl/ibex_core.sv,
-    vendor/lowrisc_ip/ip/prim_assert/prim_assert.sv
-    shared/rtl/prim_assert.sv,
+    vendor/lowrisc_ip/ip/prim/rtl/prim_assert.sv
   ]
 ibex_vip_rtl:
   targets: [
