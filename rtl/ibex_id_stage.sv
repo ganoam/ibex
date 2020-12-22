@@ -17,14 +17,15 @@
 `include "prim_assert.sv"
 
 module ibex_id_stage #(
-    parameter bit               RV32E           = 0,
-    parameter ibex_pkg::rv32m_e RV32M           = ibex_pkg::RV32MFast,
-    parameter ibex_pkg::rv32b_e RV32B           = ibex_pkg::RV32BNone,
-    parameter bit               DataIndTiming   = 1'b0,
-    parameter bit               BranchTargetALU = 0,
-    parameter bit               SpecBranch      = 0,
-    parameter bit               WritebackStage  = 0,
-    parameter bit               BranchPredictor = 0
+    parameter bit               RV32E               = 0,
+    parameter bit               RV32FD              = 0,
+    parameter ibex_pkg::rv32m_e RV32M               = ibex_pkg::RV32MFast,
+    parameter ibex_pkg::rv32b_e RV32B               = ibex_pkg::RV32BNone,
+    parameter bit               DataIndTiming       = 1'b0,
+    parameter bit               BranchTargetALU     = 0,
+    parameter bit               SpecBranch          = 0,
+    parameter bit               WritebackStage      = 0,
+    parameter bit               BranchPredictor     = 0
 ) (
     input  logic                      clk_i,
     input  logic                      rst_ni,
@@ -171,6 +172,23 @@ module ibex_id_stage #(
     input logic                       ready_wb_i,
     input logic                       outstanding_load_wb_i,
     input logic                       outstanding_store_wb_i,
+    // Accelerator Interface - Master Port
+    // Independent channels for transaction request and response.
+    // AXI-like handshaking.
+    // Same IDs need to be handled in-order.
+    output acc_addr_e                 acc_qaddr_o,      //done
+    output logic [4:0]                acc_qid_o,        //done
+    output logic [31:0]               acc_qdata_op_o,   //done
+    output data_t                     acc_qdata_arga_o, //done
+    output data_t                     acc_qdata_argb_o, //done
+    output addr_t                     acc_qdata_argc_o, //done
+    output logic                      acc_qvalid_o,     //done
+    input  logic                      acc_qready_i,
+    input  data_t                     acc_pdata_i,      //done
+    input  logic [4:0]                acc_pid_i,        //done
+    input  logic                      acc_perror_i,
+    input  logic                      acc_pvalid_i,     //done
+    output logic                      acc_pready_o,     //done
 
     // Performance Counters
     output logic                      perf_jump_o,    // executing a jump instr
@@ -183,7 +201,10 @@ module ibex_id_stage #(
     output logic                      instr_id_done_o
 );
 
+
   import ibex_pkg::*;
+
+  localparam ExternalAccelerator = RV32M == RV32MShared ? 1'b1 : 1'b0;
 
   // Decoder/Controller, ID stage internal signals
   logic        illegal_insn_dec;
@@ -215,8 +236,16 @@ module ibex_id_stage #(
   logic        stall_jump;
   logic        stall_id;
   logic        stall_wb;
+  logic        stall_acc_req;
   logic        flush_id;
   logic        multicycle_done;
+
+  // Support for shared functional units
+  // Scoreboard
+  localparam int unsigned NUM_REGS = RV32E ? 16 : 32;
+  logic [NUM_REGS-1] sb_d, sb_q;
+
+
 
   // Immediate decoding and sign extension
   logic [31:0] imm_i_type;
@@ -231,12 +260,12 @@ module ibex_id_stage #(
 
   // Register file interface
 
-  rf_wd_sel_e  rf_wdata_sel;
+  rf_wd_sel_e  rf_wdata_sel_dec;
   logic        rf_we_dec, rf_we_raw;
   logic        rf_ren_a, rf_ren_b;
 
-  assign rf_ren_a_o = rf_ren_a;
-  assign rf_ren_b_o = rf_ren_b;
+  assign       rf_ren_a_o = rf_ren_a;
+  assign       rf_ren_b_o = rf_ren_b;
 
   logic [31:0] rf_rdata_a_fwd;
   logic [31:0] rf_rdata_b_fwd;
@@ -302,6 +331,31 @@ module ibex_id_stage #(
       default:     alu_operand_a = pc_id_i;
     endcase
   end
+
+  if (ExternalAccelerator) begin : g_accelerator_op__muxes
+    // Accelerator operand A mux
+    always_comb begin: acc_operand_a_mux
+      unique case (acc_op_a_mux_sel)
+        OP_A_REG_A:  acc_qdata_arga_o = rf_rdata_a_fwd;
+        OP_A_FWD:    acc_qdata_arga_o = lsu_addr_last_i;
+        OP_A_CURRPC: acc_qdata_arga_o = pc_id_i;
+        OP_A_IMM:    acc_qdata_arga_o = imm_a;
+        default:       acc_qdata_arga_o = rf_rdata_fd;
+      endcase
+    end
+    // Accelerator operand B mux
+    assign acc_qdata_argb_o = (acc_op_b_mux_sel == OP_B_IMM) ? imm_b : rf_rdata_b_fwd;
+    // TODO
+    // Accelerator operand C mux
+    logic unused_acc_op_c_mux_sel;
+    assign unused_acc_op_c_mux_sel = acc_op_c_mux_sel;
+    assign acc_qdata_argc_o = '0;
+  end else begin : g_no_accelerator_op_muxes
+    assign acc_qdata_arga_o = '0;
+    assign acc_qdata_argb_o = '0;
+    assign acc_qdata_argc_o = '0;
+  // g_accelerator_muxes
+
 
   if (BranchTargetALU) begin : g_btalu_muxes
     // Branch target ALU operand A mux
@@ -392,21 +446,75 @@ module ibex_id_stage #(
 
   assign imd_val_q_ex_o = imd_val_q;
 
+  //////////////////////////////////////
+  // Accelerator Offloading Interface //
+  //////////////////////////////////////
+  logic [4:0] rf_waddr_dec;
+  logic       acc_sel_dec;
+
+  acc_qid_o      = rf_waddr_dec;
+  acc_qdata_op_o = instr_rdata_i;
+  acc_qvalid_o   = acc_sel_dec && instr_valid_i;
+
+  //for now ignore error line
+  logic  unused_acc_qerror;
+  assign unused_acc_qerror = acc_qerror_i;
+
   ///////////////////////
   // Register File MUX //
   ///////////////////////
 
+  logic rf_we_int;
   // Suppress register write if there is an illegal CSR access or instruction is not executing
-  assign rf_we_id_o = rf_we_raw & instr_executing & ~illegal_csr_insn_i;
+  assign rf_we_int = rf_we_raw & instr_executing & ~illegal_csr_insn_i;
 
   // Register file write data mux
+  // Priority 1: ALU/Jump Target/Bypass
+  // Priority 2: Accelerator Interface
   always_comb begin : rf_wdata_id_mux
-    unique case (rf_wdata_sel)
+    rf_we_id_o    = rf_we_int;
+    rf_waddr_id_o = rf_waddr_dec;
+    acc_pready_o  = 1'b0;
+
+    unique case (rf_wdata_sel_dec)
       RF_WD_EX:  rf_wdata_id_o = result_ex_i;
       RF_WD_CSR: rf_wdata_id_o = csr_rdata_i;
       default:   rf_wdata_id_o = result_ex_i;
     endcase
+
+    if (!rf_we_int && acc_pvalid_i) begin
+      rf_we_id_o    = 1'b1;
+      rf_waddr_id_o = acc_pid_i;
+      rf_wdata_id_o = acc_pdata_i[31:0];
+      acc_pready_o  = 1'b1;
+    end
   end
+
+  // Scoreboard
+  always_comb begin
+    sb_d = sb_q;
+    // reserve if accelerator insn with rd
+    if (acc_qvalid_o && acc_register_rd) begin
+      sb_d[acc_qid_i] = 1'b1;
+    end
+    // release if accelerator writeback in this cycle
+    if (acc_pvalid_i && acc_pready_o) begin
+      sb_d[acc_pid_i] = 1'b0;
+    end
+  end
+
+  // Check reservations
+  always_comb begin
+    operands_ready = 1'b1;
+    if (rf_ren_a_o && sb_q[rf_raddr_a_o) begin
+      operands_ready = 1'b0;
+    end
+    if (rf_ren_b_o && sb_q[rf_raddr_b_o) begin
+      operands_ready = 1'b0;
+    end
+  end
+
+
 
   /////////////
   // Decoder //
@@ -414,6 +522,7 @@ module ibex_id_stage #(
 
   ibex_decoder #(
       .RV32E           ( RV32E           ),
+      .RV32FD          ( RV32FD          ),
       .RV32M           ( RV32M           ),
       .RV32B           ( RV32B           ),
       .BranchTargetALU ( BranchTargetALU )
@@ -452,12 +561,12 @@ module ibex_id_stage #(
       .zimm_rs1_type_o                 ( zimm_rs1_type        ),
 
       // register file
-      .rf_wdata_sel_o                  ( rf_wdata_sel         ),
+      .rf_wdata_sel_o                  ( rf_wdata_sel_dec     ),
       .rf_we_o                         ( rf_we_dec            ),
 
       .rf_raddr_a_o                    ( rf_raddr_a_o         ),
       .rf_raddr_b_o                    ( rf_raddr_b_o         ),
-      .rf_waddr_o                      ( rf_waddr_id_o        ),
+      .rf_waddr_o                      ( rf_waddr_dec         ),
       .rf_ren_a_o                      ( rf_ren_a             ),
       .rf_ren_b_o                      ( rf_ren_b             ),
 
@@ -474,6 +583,13 @@ module ibex_id_stage #(
       .div_sel_o                       ( div_sel_ex_o         ),
       .multdiv_operator_o              ( multdiv_operator     ),
       .multdiv_signed_mode_o           ( multdiv_signed_mode  ),
+
+      // external accelerator interface
+      .acc_qaddr_o                     ( acc_qaddr_o          ),
+      .acc_sel_o                       ( acc_sel_dec          ),
+      .acc_op_a_mux_sel_o              ( acc_op_a_mux_sel     ).
+      .acc_op_b_mux_sel_o              ( acc_op_b_mux_sel     ).
+      .acc_op_c_mux_sel_o              ( acc_op_c_mux_sel     ).
 
       // CSRs
       .csr_access_o                    ( csr_access_o         ),
@@ -787,6 +903,10 @@ module ibex_id_stage #(
               id_fsm_d      = MULTI_CYCLE;
               rf_we_raw     = 1'b0;
             end
+            acc_sel_dec: begin
+              // accelerator request stall
+              stall_acc_req     = ~acc_qready_i;
+              id_fsm_d      = acc_qready ? FIRST_CYCLE : MULTICYCLE;
             default: begin
               id_fsm_d      = FIRST_CYCLE;
             end
@@ -804,6 +924,7 @@ module ibex_id_stage #(
             stall_multdiv   = multdiv_en_dec;
             stall_branch    = branch_in_dec;
             stall_jump      = jump_in_dec;
+            stall_acc_req       = ~acc_qready_i;
           end
         end
 
@@ -821,7 +942,7 @@ module ibex_id_stage #(
 
   // Stall ID/EX stage for reason that relates to instruction in ID/EX
   assign stall_id = stall_ld_hz | stall_mem | stall_multdiv | stall_jump | stall_branch |
-                      stall_alu;
+                      stall_alu | stall_acc_req;
 
   assign instr_done = ~stall_id & ~flush_id & instr_executing;
 
@@ -876,7 +997,8 @@ module ibex_id_stage #(
     assign instr_executing = instr_valid_i              &
                              ~instr_kill                &
                              ~stall_ld_hz               &
-                             ~outstanding_memory_access;
+                             ~outstanding_memory_access &
+                             operands_ready;
 
     `ASSERT(IbexStallIfValidInstrNotExecuting,
       instr_valid_i & ~instr_kill & ~instr_executing |-> stall_id)
@@ -938,7 +1060,10 @@ module ibex_id_stage #(
     assign stall_ld_hz   = 1'b0;
 
     // Without writeback stage any valid instruction that hasn't seen an error will execute
-    assign instr_executing = instr_valid_i & ~instr_fetch_err_i & controller_run;
+    assign instr_executing = instr_valid_i &
+                             ~instr_fetch_err_i &
+                             controller_run &
+                             operands_ready;
 
     `ASSERT(IbexStallIfValidInstrNotExecuting,
       instr_valid_i & ~instr_fetch_err_i & ~instr_executing & controller_run |-> stall_id)
@@ -1011,7 +1136,7 @@ module ibex_id_stage #(
       IMM_B_B,
       IMM_B_J,
       IMM_B_INCR_PC})
-  `ASSERT(IbexRegfileWdataSelValid, instr_valid_i |-> rf_wdata_sel inside {
+  `ASSERT(IbexRegfileWdataSelValid, instr_valid_i |-> rf_wdata_sel_dec inside {
       RF_WD_EX,
       RF_WD_CSR})
   `ASSERT_KNOWN(IbexWbStateKnown, id_fsm_q)

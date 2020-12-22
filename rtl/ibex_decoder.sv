@@ -15,6 +15,7 @@
 
 module ibex_decoder #(
     parameter bit RV32E               = 0,
+    parameter bit RV32FD              = 0,
     parameter ibex_pkg::rv32m_e RV32M = ibex_pkg::RV32MFast,
     parameter ibex_pkg::rv32b_e RV32B = ibex_pkg::RV32BNone,
     parameter bit BranchTargetALU     = 0
@@ -80,6 +81,17 @@ module ibex_decoder #(
     output ibex_pkg::md_op_e     multdiv_operator_o,
     output logic [1:0]           multdiv_signed_mode_o,
 
+    // External accelerator interface
+    output acc_addr_e            acc_qaddr_o;
+    output logic                 acc_sel_o;
+    output logic                 acc_register_rd_o;
+    output ibex_pkg::op_a_sel_e  acc_op_a_mux_sel_o;
+    output ibex_pkg::op_b_sel_e  acc_op_b_mux_sel_o;
+    // TODO: Ternary instruction support -- What do we need?
+    // For now, op_c remains unused.
+    output ibex_pkg::op_a_sel_e  acc_op_c_mux_sel_o;
+
+
     // CSRs
     output logic                 csr_access_o,          // access to CSR
     output ibex_pkg::csr_op_e    csr_op_o,              // operation to perform on CSR
@@ -115,6 +127,7 @@ module ibex_decoder #(
 
   logic        use_rs3_d;
   logic        use_rs3_q;
+
 
   csr_op_e     csr_op;
 
@@ -226,6 +239,11 @@ module ibex_decoder #(
     wfi_insn_o            = 1'b0;
 
     opcode                = opcode_e'(instr[6:0]);
+
+    acc_sel_o             = 1'b0;
+    acc_register_rd_o     = 1'b0;
+    acc_qaddr_o           = SHARED_MULTDIV;
+
 
     unique case (opcode)
 
@@ -659,6 +677,9 @@ module ibex_decoder #(
     bt_a_mux_sel_o     = OP_A_CURRPC;
     bt_b_mux_sel_o     = IMM_B_I;
 
+    acc_op_a_mux_sel_o = OP_A_REG_A;
+    acc_op_b_mux_sel_o = OP_B_REG_B;
+    acc_op_c_mux_sel_o = OP_A_REG_A; // TODO: ternary instructions.
 
     opcode_alu         = opcode_e'(instr_alu[6:0]);
 
@@ -920,6 +941,8 @@ module ibex_decoder #(
       OPCODE_OP: begin  // Register-Register ALU operation
         alu_op_a_mux_sel_o = OP_A_REG_A;
         alu_op_b_mux_sel_o = OP_B_REG_B;
+        acc_op_a_mux_sel_o = OP_A_REG_A;
+        acc_op_b_mux_sel_o = OP_B_REG_B;
 
         if (instr_alu[26]) begin
           if (RV32B != RV32BNone) begin
@@ -1043,35 +1066,59 @@ module ibex_decoder #(
             // RV32M instructions, all use the same ALU operation
             {7'b000_0001, 3'b000}: begin // mul
               alu_operator_o = ALU_ADD;
-              mult_sel_o     = (RV32M == RV32MNone) ? 1'b0 : 1'b1;
+              mult_sel_o     = (RV32M == RV32MNone) || (RV32M == RV32MShared) ? 1'b0 : 1'b1;
+              acc_sel_o         = (RV32M == RV32MShared) ? 1'b1 : 1'b0;
+              acc_qaddr_o       = SHARED_MULTDIV;
+              acc_register_rd_o = 1'b1;
             end
             {7'b000_0001, 3'b001}: begin // mulh
               alu_operator_o = ALU_ADD;
-              mult_sel_o     = (RV32M == RV32MNone) ? 1'b0 : 1'b1;
+              mult_sel_o     = (RV32M == RV32MNone) || (RV32M == RV32MShared) ? 1'b0 : 1'b1;
+              acc_sel_o      = (RV32M == RV32MShared) ? 1'b1 : 1'b0;
+              acc_qaddr_o     = SHARED_MULTDIV;
+              acc_register_rd_o = 1'b1;
             end
             {7'b000_0001, 3'b010}: begin // mulhsu
               alu_operator_o = ALU_ADD;
-              mult_sel_o     = (RV32M == RV32MNone) ? 1'b0 : 1'b1;
+              mult_sel_o     = (RV32M == RV32MNone) || (RV32M == RV32MShared) ? 1'b0 : 1'b1;
+              acc_sel_o      = (RV32M == RV32MShared) ? 1'b1 : 1'b0;
+              acc_qaddr_o     = SHARED_MULTDIV;
+              acc_register_rd_o = 1'b1;
             end
             {7'b000_0001, 3'b011}: begin // mulhu
               alu_operator_o = ALU_ADD;
-              mult_sel_o     = (RV32M == RV32MNone) ? 1'b0 : 1'b1;
+              mult_sel_o     = (RV32M == RV32MNone) || (RV32M == RV32MShared) ? 1'b0 : 1'b1;
+              acc_sel_o      = (RV32M == RV32MShared) ? 1'b1 : 1'b0;
+              acc_qaddr_o     = SHARED_MULTDIV;
+              acc_register_rd_o = 1'b1;
             end
             {7'b000_0001, 3'b100}: begin // div
               alu_operator_o = ALU_ADD;
-              div_sel_o      = (RV32M == RV32MNone) ? 1'b0 : 1'b1;
+              div_sel_o      = (RV32M == RV32MNone) || (RV32M == RV32MShared) ? 1'b0 : 1'b1;
+              acc_sel_o      = (RV32M == RV32MShared) ? 1'b1 : 1'b0;
+              acc_qaddr_o     = SHARED_MULTDIV;
+              acc_register_rd_o = 1'b1;
             end
             {7'b000_0001, 3'b101}: begin // divu
               alu_operator_o = ALU_ADD;
-              div_sel_o      = (RV32M == RV32MNone) ? 1'b0 : 1'b1;
+              div_sel_o      = (RV32M == RV32MNone) || (RV32M == RV32MShared) ? 1'b0 : 1'b1;
+              acc_sel_o      = (RV32M == RV32MShared) ? 1'b1 : 1'b0;
+              acc_qaddr_o     = SHARED_MULTDIV;
+              acc_register_rd_o = 1'b1;
             end
             {7'b000_0001, 3'b110}: begin // rem
               alu_operator_o = ALU_ADD;
-              div_sel_o      = (RV32M == RV32MNone) ? 1'b0 : 1'b1;
+              div_sel_o      = (RV32M == RV32MNone) || (RV32M == RV32MShared) ? 1'b0 : 1'b1;
+              acc_sel_o      = (RV32M == RV32MShared) ? 1'b1 : 1'b0;
+              acc_qaddr_o     = SHARED_MULTDIV;
+              acc_register_rd_o = 1'b1;
             end
             {7'b000_0001, 3'b111}: begin // remu
               alu_operator_o = ALU_ADD;
-              div_sel_o      = (RV32M == RV32MNone) ? 1'b0 : 1'b1;
+              div_sel_o      = (RV32M == RV32MNone) || (RV32M == RV32MShared) ? 1'b0 : 1'b1;
+              acc_sel_o      = (RV32M == RV32MShared) ? 1'b1 : 1'b0;
+              acc_qaddr_o     = SHARED_MULTDIV;
+              acc_register_rd_o = 1'b1;
             end
 
             default: ;

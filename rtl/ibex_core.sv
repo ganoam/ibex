@@ -19,6 +19,7 @@ module ibex_core #(
     parameter int unsigned        MHPMCounterNum   = 0,
     parameter int unsigned        MHPMCounterWidth = 40,
     parameter bit                 RV32E            = 1'b0,
+    parameter bit                 RV32FD           = 1'b0,
     parameter ibex_pkg::rv32m_e   RV32M            = ibex_pkg::RV32MFast,
     parameter ibex_pkg::rv32b_e   RV32B            = ibex_pkg::RV32BNone,
     parameter ibex_pkg::regfile_e RegFile          = ibex_pkg::RegFileFF,
@@ -99,6 +100,24 @@ module ibex_core #(
     output logic [31:0] rvfi_mem_rdata,
     output logic [31:0] rvfi_mem_wdata,
 `endif
+
+    // Accelerator Interface - Master Port
+    // Independent channels for transaction request and read completion.
+    // AXI-like handshaking.
+    // Same IDs need to be handled in-order.
+    output acc_addr_e   acc_qaddr_o,
+    output logic [4:0]  acc_qid_o,
+    output logic [31:0] acc_qdata_op_o,
+    output data_t       acc_qdata_arga_o,
+    output data_t       acc_qdata_argb_o,
+    output addr_t       acc_qdata_argc_o,
+    output logic        acc_qvalid_o,
+    input  logic        acc_qready_i,
+    input  data_t       acc_pdata_i,
+    input  logic [4:0]  acc_pid_i,
+    input  logic        acc_perror_i,
+    input  logic        acc_pvalid_i,
+    output logic        acc_pready_o,
 
     // CPU Control Signals
     input  logic        fetch_enable_i,
@@ -480,6 +499,7 @@ module ibex_core #(
 
   ibex_id_stage #(
       .RV32E           ( RV32E           ),
+      .RV32FD          ( RV32FD          ),
       .RV32M           ( RV32M           ),
       .RV32B           ( RV32B           ),
       .BranchTargetALU ( BranchTargetALU ),
@@ -623,6 +643,21 @@ module ibex_core #(
       .ready_wb_i                   ( ready_wb                 ),
       .outstanding_load_wb_i        ( outstanding_load_wb      ),
       .outstanding_store_wb_i       ( outstanding_store_wb     ),
+
+      // Accelerator Interface - Master Port
+      .acc_qaddr_o                  ( acc_qaddr_o              ),
+      .acc_qid_o                    ( acc_qid_o                ),
+      .acc_qdata_op_o               ( acc_qdata_op_o           ),
+      .acc_qdata_arga_o             ( acc_qdata_arga_o         ),
+      .acc_qdata_argb_o             ( acc_qdata_argb_o         ),
+      .acc_qdata_argc_o             ( acc_qdata_argc_o         ),
+      .acc_qvalid_o                 ( acc_qvalid_o             ),
+      .acc_qready_i                 ( acc_qready_i             ),
+      .acc_pdata_i                  ( acc_pdata_i              ),
+      .acc_pid_i                    ( acc_pid_i                ),
+      .acc_perror_i                 ( acc_perror_i             ),
+      .acc_pvalid_i                 ( acc_pvalid_i             ),
+      .acc_pready_o                 ( acc_pready_o             ),
 
       // Performance Counters
       .perf_jump_o                  ( perf_jump                ),

@@ -22,7 +22,8 @@ typedef enum integer {
   RV32MNone        = 0,
   RV32MSlow        = 1,
   RV32MFast        = 2,
-  RV32MSingleCycle = 3
+  RV32MSingleCycle = 3,
+  RV32MShared      = 4
 } rv32m_e;
 
 typedef enum integer {
@@ -48,6 +49,30 @@ typedef enum logic [6:0] {
   OPCODE_JAL      = 7'h6f,
   OPCODE_SYSTEM   = 7'h73
 } opcode_e;
+
+/////////////////////////////
+// Shared Functional Units //
+/////////////////////////////
+
+typedef enum logic [31:0] {
+  SHARED_MULTDIV = 0   // Shared Multplier
+  FP_SS           = 1, // FPU
+} acc_addr_e
+
+typedef struct packed {
+  acc_addr_e   addr;
+  logic [4:0]  id;
+  logic [31:0] instr;
+  logic [31:0] data_arga;
+  logic [31:0] data_argb;
+  logic [31:0] data_argc;
+} acc_req_t;
+
+typedef struct packed {
+  logic [4:0] id;
+  logic       error;
+  data_t      data;
+} acc_resp_t;
 
 
 ////////////////////

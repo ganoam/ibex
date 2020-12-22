@@ -73,7 +73,7 @@ module ibex_ex_block #(
     At synthesis time, all the combinational and sequential logic
     from the multdiv_i module are eliminated
   */
-  if (RV32M != RV32MNone) begin : gen_multdiv_m
+  if (RV32M != RV32MNone || RV32M != RV32MShared) begin : gen_multdiv_m
     assign multdiv_sel = mult_sel_i | div_sel_i;
   end else begin : gen_multdiv_no_m
     assign multdiv_sel = 1'b0;
