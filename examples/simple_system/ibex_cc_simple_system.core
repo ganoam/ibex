@@ -2,15 +2,17 @@ CAPI=2:
 # Copyright lowRISC contributors.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
-name: "lowrisc:ibex:ibex_simple_system"
+name: "lowrisc:ibex:ibex_cc_simple_system"
 description: "Generic simple system for running binaries on ibex using verilator"
 filesets:
   files_sim:
     depend:
-      - lowrisc:ibex:ibex_core_tracing
+      - lowrisc:ibex:ibex_cc_tracing
       - lowrisc:ibex:sim_shared
+      - pulp-platform.org::riscv-extension-interface
+      - pulp-platform.org::common_cells:1.20.0
     files:
-      - rtl/ibex_simple_system.sv
+      - rtl/ibex_cc_simple_system.sv
     file_type: systemVerilogSource
 
   files_verilator:
@@ -110,6 +112,18 @@ parameters:
     paramtype: vlogparam
     description: "Number of PMP regions"
 
+  XInterface:
+    datatype: int
+    default: 1
+    paramtype: vlogparam
+    description: "Enables the RISC-V Agnostic Extension Interface"
+
+  XInterfaceTernaryOps:
+    datatype: int
+    default: 1
+    paramtype: vlogparam
+    description: "Enables ternary operations on the RISC-V Agnostic Extension Interface"
+
 targets:
   default: &default_target
     filesets:
@@ -132,6 +146,7 @@ targets:
       - PMPGranularity
       - PMPNumRegions
       - SRAMInitFile
+      - XInterface
 
   lint:
     <<: *default_target
@@ -141,6 +156,7 @@ targets:
         mode: lint-only
         verilator_options:
           - "-Wall"
+          - "-Wno-DECLFILENAME"
           # RAM primitives wider than 64bit (required for ECC) fail to build in
           # Verilator without increasing the unroll count (see Verilator#1266)
           - "--unroll-count 72"
@@ -154,11 +170,13 @@ targets:
           - '-xlrm uniq_prior_final'
           - '-debug_access+r'
           - '-assert svaext'
+
       verilator:
         mode: cc
         verilator_options:
           # Disabling tracing reduces compile times but doesn't have a
           # huge influence on runtime performance.
+          # - '--debug'
           - '--trace'
           - '--trace-fst' # this requires -DVM_TRACE_FMT_FST in CFLAGS below!
           - '--trace-structs'
@@ -166,8 +184,10 @@ targets:
           - '--trace-max-array 1024'
           - '-CFLAGS "-std=c++11 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=ibex_simple_system -g"'
           - '-LDFLAGS "-pthread -lutil -lelf"'
-          - "-Wall"
-          - "-Wwarn-IMPERFECTSCH"
+          #- "-Wall"
+          #- "-Wwarn-IMPERFECTSCH"
+          - "-Wno-lint"
+          - "-Wno-UNOPTFLAT"
           # RAM primitives wider than 64bit (required for ECC) fail to build in
           # Verilator without increasing the unroll count (see Verilator#1266)
           - "--unroll-count 72"

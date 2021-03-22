@@ -14,10 +14,12 @@
 `include "prim_assert.sv"
 
 module ibex_decoder #(
-    parameter bit RV32E               = 0,
-    parameter ibex_pkg::rv32m_e RV32M = ibex_pkg::RV32MFast,
-    parameter ibex_pkg::rv32b_e RV32B = ibex_pkg::RV32BNone,
-    parameter bit BranchTargetALU     = 0
+    parameter bit RV32E                = 0,
+    parameter ibex_pkg::rv32m_e RV32M  = ibex_pkg::RV32MFast,
+    parameter ibex_pkg::rv32b_e RV32B  = ibex_pkg::RV32BNone,
+    parameter bit BranchTargetALU      = 0,
+    parameter bit XInterface           = 1'b0,
+    parameter bit XInterfaceTernaryOps = 1'b0
 ) (
     input  logic                 clk_i,
     input  logic                 rst_ni,
@@ -94,7 +96,10 @@ module ibex_decoder #(
 
     // jump/branches
     output logic                 jump_in_dec_o,         // jump is being calculated in ALU
-    output logic                 branch_in_dec_o
+    output logic                 branch_in_dec_o,
+
+    // agnostic ternary ops
+    input logic                  acc_use_rs3_i
 );
 
   import ibex_pkg::*;
@@ -141,7 +146,7 @@ module ibex_decoder #(
   // immediate for CSR manipulation (zero extended)
   assign zimm_rs1_type_o = { 27'b0, instr_rs1 }; // rs1
 
-  if (RV32B != RV32BNone) begin : gen_rs3_flop
+  if (RV32B != RV32BNone || (XInterface && XInterfaceTernaryOps)) begin : gen_rs3_flop
     // the use of rs3 is known one cycle ahead.
     always_ff  @(posedge clk_i or negedge rst_ni) begin
       if (!rst_ni) begin
@@ -648,6 +653,7 @@ module ibex_decoder #(
       jump_set_o      = 1'b0;
       branch_in_dec_o = 1'b0;
       csr_access_o    = 1'b0;
+      rf_wdata_sel_o  = RF_WD_ACC;
     end
   end
 
@@ -656,6 +662,7 @@ module ibex_decoder #(
   /////////////////////////////
 
   always_comb begin
+
     alu_operator_o     = ALU_SLTU;
     alu_op_a_mux_sel_o = OP_A_IMM;
     alu_op_b_mux_sel_o = OP_B_IMM;
@@ -669,7 +676,7 @@ module ibex_decoder #(
 
     opcode_alu         = opcode_e'(instr_alu[6:0]);
 
-    use_rs3_d          = 1'b0;
+    use_rs3_d          = acc_use_rs3_i;
     alu_multicycle_o   = 1'b0;
     mult_sel_o         = 1'b0;
     div_sel_o          = 1'b0;

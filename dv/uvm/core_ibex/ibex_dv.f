@@ -34,6 +34,48 @@ ${PRJ_DIR}/dv/uvm/core_ibex/common/prim/prim_ram_1p.sv
 ${PRJ_DIR}/vendor/lowrisc_ip/ip/prim_generic/rtl/prim_generic_clock_gating.sv
 ${PRJ_DIR}/dv/uvm/core_ibex/common/prim/prim_clock_gating.sv
 
+// PULP-Platform Common Cells
++incdir+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src
++incdir+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/include
+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src/cf_math_pkg.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src/stream_arbiter.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src/stream_register.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src/stream_arbiter_flushable.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src/stream_fifo.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src/fifo_v3.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src/deprecated/fifo_v2.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src/spill_register.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src/stream_demux.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src/rr_arb_tree.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src/lzc.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src/onehot_to_bin.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/common_cells/src/stream_xbar.sv
+
+// RISC-V Extension Interface Files
++incdir+${PRJ_DIR}/vendor/pulp-platform/ip/riscv-extension-interface/include/acc_interface
++incdir+${PRJ_DIR}/vendor/pulp-platform/ip/riscv-extension-interface/include
+${PRJ_DIR}/vendor/pulp-platform/ip/riscv-extension-interface/include/acc_interface/typedef.svh
+${PRJ_DIR}/vendor/pulp-platform/ip/riscv-extension-interface/include/acc_interface/assign.svh
++incdir+${PRJ_DIR}/vendor/pulp-platform/ip/riscv-extension-interface/src
+${PRJ_DIR}/vendor/pulp-platform/ip/riscv-extension-interface/src/acc_pkg.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/riscv-extension-interface/src/acc_rvb_pkg.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/riscv-extension-interface/src/acc_intf.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/riscv-extension-interface/src/acc_adapter.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/riscv-extension-interface/src/acc_interconnect.sv
+${PRJ_DIR}/vendor/pulp-platform/ip/riscv-extension-interface/src/acc_predecoder.sv
+
+// RVB example implementation
+${PRJ_DIR}/vendor/riscv/ip/riscv-bitmanip/verilog/rvb_full/rvb_full.v
+${PRJ_DIR}/vendor/riscv/ip/riscv-bitmanip/verilog/rvb_bextdep/rvb_bextdep.v
+${PRJ_DIR}/vendor/riscv/ip/riscv-bitmanip/verilog/rvb_bitcnt/rvb_bitcnt.v
+${PRJ_DIR}/vendor/riscv/ip/riscv-bitmanip/verilog/rvb_bmatxor/rvb_bmatxor.v
+${PRJ_DIR}/vendor/riscv/ip/riscv-bitmanip/verilog/rvb_clmul/rvb_clmul.v
+${PRJ_DIR}/vendor/riscv/ip/riscv-bitmanip/verilog/rvb_crc/rvb_crc.v
+${PRJ_DIR}/vendor/riscv/ip/riscv-bitmanip/verilog/rvb_shifter/rvb_shifter.v
+${PRJ_DIR}/vendor/riscv/ip/riscv-bitmanip/verilog/rvb_simple/rvb_simple.v
+${PRJ_DIR}/vendor/riscv/ip/riscv-bitmanip/verilog/rvb_zbb32/rvb_zbb32.v
+
+
 // ibex CORE RTL files
 +incdir+${PRJ_DIR}/rtl
 ${PRJ_DIR}/rtl/ibex_pkg.sv
@@ -63,7 +105,8 @@ ${PRJ_DIR}/rtl/ibex_register_file_fpga.sv
 ${PRJ_DIR}/rtl/ibex_register_file_latch.sv
 ${PRJ_DIR}/rtl/ibex_pmp.sv
 ${PRJ_DIR}/rtl/ibex_core.sv
-${PRJ_DIR}/rtl/ibex_core_tracing.sv
+${PRJ_DIR}/rtl/ibex_cc.sv
+${PRJ_DIR}/rtl/ibex_cc_tracing.sv
 
 // Core DV files
 ${PRJ_DIR}/vendor/google_riscv-dv/src/riscv_signature_pkg.sv

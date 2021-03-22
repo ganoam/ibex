@@ -13,25 +13,27 @@
  * Top level module of the ibex RISC-V core
  */
 module ibex_core #(
-    parameter bit                 PMPEnable        = 1'b0,
-    parameter int unsigned        PMPGranularity   = 0,
-    parameter int unsigned        PMPNumRegions    = 4,
-    parameter int unsigned        MHPMCounterNum   = 0,
-    parameter int unsigned        MHPMCounterWidth = 40,
-    parameter bit                 RV32E            = 1'b0,
-    parameter ibex_pkg::rv32m_e   RV32M            = ibex_pkg::RV32MFast,
-    parameter ibex_pkg::rv32b_e   RV32B            = ibex_pkg::RV32BNone,
-    parameter ibex_pkg::regfile_e RegFile          = ibex_pkg::RegFileFF,
-    parameter bit                 BranchTargetALU  = 1'b0,
-    parameter bit                 WritebackStage   = 1'b0,
-    parameter bit                 ICache           = 1'b0,
-    parameter bit                 ICacheECC        = 1'b0,
-    parameter bit                 BranchPredictor  = 1'b0,
-    parameter bit                 DbgTriggerEn     = 1'b0,
-    parameter int unsigned        DbgHwBreakNum    = 1,
-    parameter bit                 SecureIbex       = 1'b0,
-    parameter int unsigned        DmHaltAddr       = 32'h1A110800,
-    parameter int unsigned        DmExceptionAddr  = 32'h1A110808
+    parameter bit                 PMPEnable               = 1'b0,
+    parameter int unsigned        PMPGranularity          = 0,
+    parameter int unsigned        PMPNumRegions           = 4,
+    parameter int unsigned        MHPMCounterNum          = 0,
+    parameter int unsigned        MHPMCounterWidth        = 40,
+    parameter bit                 RV32E                   = 1'b0,
+    parameter ibex_pkg::rv32m_e   RV32M                   = ibex_pkg::RV32MFast,
+    parameter ibex_pkg::rv32b_e   RV32B                   = ibex_pkg::RV32BNone,
+    parameter ibex_pkg::regfile_e RegFile                 = ibex_pkg::RegFileFF,
+    parameter bit                 BranchTargetALU         = 1'b0,
+    parameter bit                 WritebackStage          = 1'b0,
+    parameter bit                 ICache                  = 1'b0,
+    parameter bit                 ICacheECC               = 1'b0,
+    parameter bit                 BranchPredictor         = 1'b0,
+    parameter bit                 DbgTriggerEn            = 1'b0,
+    parameter int unsigned        DbgHwBreakNum           = 1,
+    parameter bit                 SecureIbex              = 1'b0,
+    parameter int unsigned        DmHaltAddr              = 32'h1A110800,
+    parameter int unsigned        DmExceptionAddr         = 32'h1A110808,
+    parameter bit                 XInterface              = 1'b0,
+    parameter bit                 XInterfaceTernaryOps    = 1'b0
 ) (
     // Clock and Reset
     input  logic                         clk_i,
@@ -72,6 +74,24 @@ module ibex_core #(
     // Debug Interface
     input  logic                         debug_req_i,
     output ibex_pkg::crash_dump_t        crash_dump_o,
+
+    // RISC-V Extension Interface
+    output logic                         acc_x_q_valid_o,
+    input  logic                         acc_x_q_ready_i,
+    output logic [31:0]                  acc_x_q_instr_data_o,
+    output logic [31:0]                  acc_x_q_rs1_o,
+    output logic [31:0]                  acc_x_q_rs2_o,
+    output logic [31:0]                  acc_x_q_rs3_o,
+    output logic [ 2:0]                  acc_x_q_rs_valid_o,
+    output logic                         acc_x_q_rd_clean_o,
+    input  logic                         acc_x_k_writeback_i,
+    input  logic                         acc_x_k_accept_i,
+
+    input  logic                         acc_x_p_valid_i,
+    output logic                         acc_x_p_ready_o,
+    input  logic [4:0]                   acc_x_p_rd_i,
+    input  logic [31:0]                  acc_x_p_data_i,
+    input  logic                         acc_x_p_error_i,
 
     // RISC-V Formal Interface
     // Does not comply with the coding standards of _i/_o suffixes, but follows
@@ -483,14 +503,16 @@ module ibex_core #(
   //////////////
 
   ibex_id_stage #(
-      .RV32E           ( RV32E           ),
-      .RV32M           ( RV32M           ),
-      .RV32B           ( RV32B           ),
-      .BranchTargetALU ( BranchTargetALU ),
-      .DataIndTiming   ( DataIndTiming   ),
-      .SpecBranch      ( SpecBranch      ),
-      .WritebackStage  ( WritebackStage  ),
-      .BranchPredictor ( BranchPredictor )
+      .RV32E                ( RV32E                ),
+      .RV32M                ( RV32M                ),
+      .RV32B                ( RV32B                ),
+      .BranchTargetALU      ( BranchTargetALU      ),
+      .DataIndTiming        ( DataIndTiming        ),
+      .SpecBranch           ( SpecBranch           ),
+      .WritebackStage       ( WritebackStage       ),
+      .BranchPredictor      ( BranchPredictor      ),
+      .XInterface           ( XInterface           ),
+      .XInterfaceTernaryOps ( XInterfaceTernaryOps )
   ) id_stage_i (
       .clk_i                        ( clk                      ),
       .rst_ni                       ( rst_ni                   ),
@@ -635,7 +657,26 @@ module ibex_core #(
       .perf_dside_wait_o            ( perf_dside_wait          ),
       .perf_mul_wait_o              ( perf_mul_wait            ),
       .perf_div_wait_o              ( perf_div_wait            ),
-      .instr_id_done_o              ( instr_id_done            )
+      .instr_id_done_o              ( instr_id_done            ),
+
+      // RISC-V Extension Interface
+      .acc_x_q_valid_o              ( acc_x_q_valid_o          ),
+      .acc_x_q_ready_i              ( acc_x_q_ready_i          ),
+      .acc_x_q_instr_data_o         ( acc_x_q_instr_data_o     ),
+      .acc_x_q_rs1_o                ( acc_x_q_rs1_o            ),
+      .acc_x_q_rs2_o                ( acc_x_q_rs2_o            ),
+      .acc_x_q_rs3_o                ( acc_x_q_rs3_o            ),
+      .acc_x_q_rs_valid_o           ( acc_x_q_rs_valid_o       ),
+      .acc_x_q_rd_clean_o           ( acc_x_q_rd_clean_o       ),
+      .acc_x_k_writeback_i          ( acc_x_k_writeback_i      ),
+      .acc_x_k_accept_i             ( acc_x_k_accept_i         ),
+
+      .acc_x_p_valid_i              ( acc_x_p_valid_i          ),
+      .acc_x_p_ready_o              ( acc_x_p_ready_o          ),
+      .acc_x_p_rd_i                 ( acc_x_p_rd_i             ),
+      .acc_x_p_data_i               ( acc_x_p_data_i           ),
+      .acc_x_p_error_i              ( acc_x_p_error_i          )
+
   );
 
   // for RVFI only
