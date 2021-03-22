@@ -153,6 +153,7 @@ targets:
         vcs_options:
           - '-xlrm uniq_prior_final'
           - '-debug_access+r'
+          - '-assert svaext'
       verilator:
         mode: cc
         verilator_options:
