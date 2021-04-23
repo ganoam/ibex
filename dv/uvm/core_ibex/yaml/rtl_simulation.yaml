@@ -31,9 +31,9 @@
          -debug_access+pp
          -xlrm uniq_prior_final
          -CFLAGS '--std=c99 -fno-extended-identifiers'
-         -lca -kdb <cmp_opts> <wave_opts> <cov_opts>
-         -assert svaext
-         -suppress=SV-UIP"
+         -kdb <cmp_opts> <wave_opts> <cov_opts>
+         -lca
+         -assert svaext"
 
     cov_opts: >
       -cm line+tgl+assert+fsm+branch

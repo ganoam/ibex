@@ -322,8 +322,12 @@ module ibex_core #(
 
   // signals relating to instruction movements between pipeline stages
   // used by performance counters and RVFI
+  logic        instr_is_offload_id;
+  logic        instr_is_offloadwb_id;
+
   logic        instr_id_done;
   logic        instr_done_wb;
+  logic        instr_done_wb_is_offload;
 
   logic        perf_instr_ret_wb;
   logic        perf_instr_ret_compressed_wb;
@@ -646,6 +650,7 @@ module ibex_core #(
       .en_wb_o                      ( en_wb                    ),
       .instr_type_wb_o              ( instr_type_wb            ),
       .instr_perf_count_id_o        ( instr_perf_count_id      ),
+      .instr_is_offloadwb_id_o      ( instr_is_offloadwb_id    ),
       .ready_wb_i                   ( ready_wb                 ),
       .outstanding_load_wb_i        ( outstanding_load_wb      ),
       .outstanding_store_wb_i       ( outstanding_store_wb     ),
@@ -790,6 +795,7 @@ module ibex_core #(
     .pc_id_i                        ( pc_id                        ),
     .instr_is_compressed_id_i       ( instr_is_compressed_id       ),
     .instr_perf_count_id_i          ( instr_perf_count_id          ),
+    .instr_is_offloadwb_id_i        ( instr_is_offloadwb_id        ),
 
     .ready_wb_o                     ( ready_wb                     ),
     .rf_write_wb_o                  ( rf_write_wb                  ),
@@ -815,7 +821,8 @@ module ibex_core #(
     .lsu_resp_valid_i               ( lsu_resp_valid               ),
     .lsu_resp_err_i                 ( lsu_resp_err                 ),
 
-    .instr_done_wb_o                ( instr_done_wb                )
+    .instr_done_wb_o                ( instr_done_wb                ),
+    .instr_done_wb_is_offload_o     ( instr_done_wb_is_offload     )
   );
 
   ///////////////////////
@@ -1325,6 +1332,7 @@ module ibex_core #(
           end
         end else begin
           if(instr_done_wb) begin
+            if (instr_done_wb_type == WB
             rvfi_stage_halt[i]      <= rvfi_stage_halt[i-1];
             rvfi_stage_trap[i]      <= rvfi_stage_trap[i-1];
             rvfi_stage_intr[i]      <= rvfi_stage_intr[i-1];

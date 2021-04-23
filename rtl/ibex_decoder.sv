@@ -146,7 +146,7 @@ module ibex_decoder #(
   // immediate for CSR manipulation (zero extended)
   assign zimm_rs1_type_o = { 27'b0, instr_rs1 }; // rs1
 
-  if (RV32B != RV32BNone || (XInterface && XInterfaceTernaryOps)) begin : gen_rs3_flop
+  if (RV32B != RV32BNone) begin : gen_rs3_flop
     // the use of rs3 is known one cycle ahead.
     always_ff  @(posedge clk_i or negedge rst_ni) begin
       if (!rst_ni) begin
@@ -171,7 +171,8 @@ module ibex_decoder #(
   assign instr_rs1 = instr[19:15];
   assign instr_rs2 = instr[24:20];
   assign instr_rs3 = instr[31:27];
-  assign rf_raddr_a_o = (use_rs3_q & ~instr_first_cycle_i) ? instr_rs3 : instr_rs1; // rs3 / rs1
+  assign rf_raddr_a_o =
+      ((use_rs3_q & ~instr_first_cycle_i) | acc_use_rs3_i) ? instr_rs3 : instr_rs1; // rs3 / rs1
   assign rf_raddr_b_o = instr_rs2; // rs2
 
   // destination register

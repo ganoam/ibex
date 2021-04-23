@@ -171,6 +171,7 @@ module ibex_id_stage #(
     output  logic                     en_wb_o,
     output  ibex_pkg::wb_instr_type_e instr_type_wb_o,
     output  logic                     instr_perf_count_id_o,
+    output  logic                     instr_is_offload_wb_o,
     input logic                       ready_wb_i,
     input logic                       outstanding_load_wb_i,
     input logic                       outstanding_store_wb_i,
@@ -258,12 +259,11 @@ module ibex_id_stage #(
   // Register file interface
 
   rf_wd_sel_e  rf_wdata_sel;
+  rf_wd_sel_e  rf_wdata_sel_dec;
   logic        rf_we_dec, rf_we_raw;
   logic        rf_ren_a_dec, rf_ren_b_dec;
   logic [4:0]  rf_waddr_dec;
 
-  assign rf_ren_a_o = rf_ren_a_dec || (XInterface && illegal_insn_dec);
-  assign rf_ren_b_o = rf_ren_b_dec || (XInterface && illegal_insn_dec);
 
   logic [31:0] rf_rdata_a_fwd;
   logic [31:0] rf_rdata_b_fwd;
@@ -317,13 +317,18 @@ module ibex_id_stage #(
   logic acc_illegal;
   logic [31:0] rf_wdata_acc;
   logic acc_use_rs3;
+  logic acc_dispatch;
+  logic acc_insn_spec;
+
+  assign rf_ren_a_o = rf_ren_a_dec || (XInterface && illegal_insn_dec);
+  assign rf_ren_b_o = rf_ren_b_dec || (XInterface && illegal_insn_dec);
+  assign rf_wdata_sel = acc_writeback ? RF_WD_ACC : rf_wdata_sel_dec;
+  assign instr_is_offload_wb = acc_writeback;
+
   if (XInterface) begin : gen_x_intf
-    logic acc_dispatch;
-    logic acc_insn_spec;
     logic acc_rs1_flop;
     logic unused_acc_x_p_error;
     assign unused_acc_x_p_error = acc_x_p_error_i;
-
 
 
 
@@ -356,8 +361,9 @@ module ibex_id_stage #(
 
     // Writeback
 
-    // just use the wb stage, if it is not occupied.
-    assign acc_writeback = ready_wb_i & ~(instr_done & ~acc_offl_done) & acc_x_p_valid_i;
+    // just use the wb stage, if it is not occupied:
+    // An instruction is done, but not offloaded.
+    assign acc_writeback = ready_wb_i & ~(instr_done & ~acc_offl_done) & ~(outstanding_load_wb_i | outstanding_store_wb_i)  & acc_x_p_valid_i;
     assign acc_x_p_ready_o = acc_writeback;
 
     assign rf_waddr_acc = acc_x_p_rd_i;
@@ -403,6 +409,9 @@ module ibex_id_stage #(
     // Accelerator writeback
     assign rf_wdata_acc = acc_x_p_data_i;
 
+    logic tst_offl_statechange;
+    assign tst_offl_statechange = acc_rs1_flop && !acc_offl_done;
+
 
     typedef enum logic { StIdle, StGetRs3 } xintf_offl_fsm_e;
     xintf_offl_fsm_e xintf_offl_fsm_q, xintf_offl_fsm_d;
@@ -420,6 +429,8 @@ module ibex_id_stage #(
       acc_use_rs3 = 1'b0;
 
       imd_val_we_acc = 1'b0;
+
+      xintf_offl_fsm_d = xintf_offl_fsm_q;
 
       unique case (xintf_offl_fsm_q)
         StIdle: begin
@@ -606,10 +617,12 @@ module ibex_id_stage #(
   /////////////
 
   ibex_decoder #(
-      .RV32E           ( RV32E           ),
-      .RV32M           ( RV32M           ),
-      .RV32B           ( RV32B           ),
-      .BranchTargetALU ( BranchTargetALU )
+      .RV32E                ( RV32E                ),
+      .RV32M                ( RV32M                ),
+      .RV32B                ( RV32B                ),
+      .BranchTargetALU      ( BranchTargetALU      ),
+      .XInterface           ( XInterface           ),
+      .XInterfaceTernaryOps ( XInterfaceTernaryOps )
   ) decoder_i (
       .clk_i                           ( clk_i                ),
       .rst_ni                          ( rst_ni               ),
@@ -645,7 +658,7 @@ module ibex_id_stage #(
       .zimm_rs1_type_o                 ( zimm_rs1_type        ),
 
       // register file
-      .rf_wdata_sel_o                  ( rf_wdata_sel         ),
+      .rf_wdata_sel_o                  ( rf_wdata_sel_dec     ),
       .rf_we_o                         ( rf_we_dec            ),
 
       .rf_raddr_a_o                    ( rf_raddr_a_o         ),
@@ -716,8 +729,8 @@ module ibex_id_stage #(
   // Controller //
   ////////////////
 
-  assign illegal_insn_id = (illegal_insn_dec | illegal_csr_insn_i) &
-                           ~(stall_acc_offl | acc_offl_done);
+  assign illegal_insn_id = XInterface ? acc_illegal : (illegal_insn_dec | illegal_csr_insn_i);
+
   assign illegal_insn_o = instr_valid_i & illegal_insn_id;
 
   ibex_controller #(
@@ -953,6 +966,7 @@ module ibex_id_stage #(
     stall_jump              = 1'b0;
     stall_branch            = 1'b0;
     stall_alu               = 1'b0;
+    stall_acc_offl          = 1'b0;
     branch_set_raw_d        = 1'b0;
     branch_spec             = 1'b0;
     branch_not_set          = 1'b0;
@@ -1014,7 +1028,7 @@ module ibex_id_stage #(
             end
             illegal_insn_dec: begin
               stall_acc_offl = XInterface ? !acc_x_q_ready_i : 1'b0;
-              id_fsm_d  = MULTI_CYCLE;
+              id_fsm_d  = acc_x_q_ready_i ? FIRST_CYCLE : MULTI_CYCLE;
             end
             default: begin
               id_fsm_d      = FIRST_CYCLE;
@@ -1072,7 +1086,9 @@ module ibex_id_stage #(
 
     logic instr_kill;
 
-    assign multicycle_done = lsu_req_dec ? ~stall_mem : (ex_valid_i || acc_offl_done);
+    assign multicycle_done = lsu_req_dec   ? ~stall_mem :
+                             acc_insn_spec ? acc_offl_done :
+                                             ex_valid_i;
 
     // Is a memory access ongoing that isn't finishing this cycle
     assign outstanding_memory_access = (outstanding_load_wb_i | outstanding_store_wb_i) &
@@ -1118,6 +1134,7 @@ module ibex_id_stage #(
     assign instr_executing = instr_valid_i              &
                              ~instr_kill                &
                              ~stall_ld_hz               &
+                             ~stall_acc_wb              &
                              ~outstanding_memory_access;
 
     `ASSERT(IbexExecutingSpecIfExecuting, instr_executing |-> instr_executing_spec)
@@ -1160,9 +1177,9 @@ module ibex_id_stage #(
 
     assign stall_ld_hz = outstanding_load_wb_i & (rf_rd_a_hz | rf_rd_b_hz);
 
-    assign instr_type_wb_o = ~lsu_req_dec ? WB_INSTR_OTHER :
-                              lsu_we      ? WB_INSTR_STORE :
-                                            WB_INSTR_LOAD;
+    assign instr_type_wb_o = (~lsu_req_dec | acc_writeback) ? WB_INSTR_OTHER :
+                              lsu_we                        ? WB_INSTR_STORE :
+                                                              WB_INSTR_LOAD;
 
     // TODO: this also covers acc_writeback. may not be what we want upstream.
     assign instr_id_done_o = en_wb_o & ready_wb_i & ~acc_writeback;
@@ -1190,7 +1207,7 @@ module ibex_id_stage #(
     // Without writeback stage any valid instruction that hasn't seen an error will execute
     // unless waiting for accelerator writeback.
     assign instr_executing_spec = instr_valid_i &
-                            ~instr_fetch_err_i &
+                                  ~instr_fetch_err_i &
                                   controller_run &
                                   ~stall_acc_wb;
     assign instr_executing = instr_executing_spec;

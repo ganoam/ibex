@@ -25,6 +25,7 @@ module ibex_wb_stage #(
   input  logic [31:0]              pc_id_i,
   input  logic                     instr_is_compressed_id_i,
   input  logic                     instr_perf_count_id_i,
+  input  logic                     instr_is_offloadwb_id_i,
 
   output logic                     ready_wb_o,
   output logic                     rf_write_wb_o,
@@ -50,7 +51,8 @@ module ibex_wb_stage #(
   input logic                      lsu_resp_valid_i,
   input logic                      lsu_resp_err_i,
 
-  output logic                     instr_done_wb_o
+  output logic                     instr_done_wb_o,
+  output logic                     instr_done_wb_is_offload_o;
 );
 
   import ibex_pkg::*;
@@ -64,6 +66,8 @@ module ibex_wb_stage #(
     logic [31:0]    rf_wdata_wb_q;
     logic           rf_we_wb_q;
     logic [4:0]     rf_waddr_wb_q;
+
+    logic           instr_is_offloadwb_q;
 
     logic           wb_done;
 
@@ -94,13 +98,14 @@ module ibex_wb_stage #(
 
     always_ff @(posedge clk_i) begin
       if(en_wb_i) begin
-        rf_we_wb_q      <= rf_we_id_i;
-        rf_waddr_wb_q   <= rf_waddr_id_i;
-        rf_wdata_wb_q   <= rf_wdata_id_i;
-        wb_instr_type_q <= instr_type_wb_i;
-        wb_pc_q         <= pc_id_i;
-        wb_compressed_q <= instr_is_compressed_id_i;
-        wb_count_q      <= instr_perf_count_id_i;
+        rf_we_wb_q            <= rf_we_id_i;
+        rf_waddr_wb_q         <= rf_waddr_id_i;
+        rf_wdata_wb_q         <= rf_wdata_id_i;
+        wb_instr_type_q       <= instr_type_wb_i;
+        wb_pc_q               <= pc_id_i;
+        wb_compressed_q       <= instr_is_compressed_id_i;
+        wb_count_q            <= instr_perf_count_id_i;
+        instr_is_offloadwb_q  <= instr_is_offloadwb_id_i;
       end
     end
 
@@ -120,6 +125,9 @@ module ibex_wb_stage #(
     assign pc_wb_o = wb_pc_q;
 
     assign instr_done_wb_o = wb_valid_q & wb_done;
+    assign instr_done_wb_type_o = wb_instr_type_q;
+
+    assign instr_done_wb_is_offload_o = instr_is_offloadwb_q;
 
     // Increment instruction retire counters for valid instructions which are not lsu errors
     assign perf_instr_ret_wb_o            = instr_done_wb_o & wb_count_q &
@@ -157,12 +165,13 @@ module ibex_wb_stage #(
     assign unused_instr_type_wb  = instr_type_wb_i;
     assign unused_pc_id          = pc_id_i;
 
-    assign outstanding_load_wb_o  = 1'b0;
-    assign outstanding_store_wb_o = 1'b0;
-    assign pc_wb_o                = '0;
-    assign rf_write_wb_o          = 1'b0;
-    assign rf_wdata_fwd_wb_o      = 32'b0;
-    assign instr_done_wb_o        = 1'b0;
+    assign outstanding_load_wb_o      = 1'b0;
+    assign outstanding_store_wb_o     = 1'b0;
+    assign pc_wb_o                    = '0;
+    assign rf_write_wb_o              = 1'b0;
+    assign rf_wdata_fwd_wb_o          = 32'b0;
+    assign instr_done_wb_o            = 1'b0;
+    assign instr_done_wb_is_offload_o = instr_is_offloadwb_id_i;
   end
 
   assign rf_wdata_wb_mux[1]    = rf_wdata_lsu_i;

@@ -168,7 +168,9 @@ targets:
       vcs:
         vcs_options:
           - '-xlrm uniq_prior_final'
-          - '-debug_access+r'
+          - '-kdb'
+          - '-debug_access+all'
+          - '-lca'
           - '-assert svaext'
 
       verilator:
