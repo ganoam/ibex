@@ -322,12 +322,11 @@ module ibex_core #(
 
   // signals relating to instruction movements between pipeline stages
   // used by performance counters and RVFI
-  logic        instr_is_offload_id;
-  logic        instr_is_offloadwb_id;
+  logic        acc_dispatch_id;
+  logic        acc_writeback_id;
 
   logic        instr_id_done;
   logic        instr_done_wb;
-  logic        instr_done_wb_is_offload;
 
   logic        perf_instr_ret_wb;
   logic        perf_instr_ret_compressed_wb;
@@ -340,6 +339,11 @@ module ibex_core #(
   logic        perf_tbranch;
   logic        perf_load;
   logic        perf_store;
+
+  logic [4:0] instr_rs1_id;
+  logic [4:0] instr_rs2_id;
+  logic [4:0] instr_rs3_id;
+  logic [4:0] instr_rd_id;
 
   // for RVFI
   logic        illegal_insn_id, unused_illegal_insn_id; // ID stage sees an illegal instruction
@@ -650,7 +654,8 @@ module ibex_core #(
       .en_wb_o                      ( en_wb                    ),
       .instr_type_wb_o              ( instr_type_wb            ),
       .instr_perf_count_id_o        ( instr_perf_count_id      ),
-      .instr_is_offloadwb_id_o      ( instr_is_offloadwb_id    ),
+      .acc_writeback_o              ( acc_writeback_id         ),
+      .acc_dispatch_o               ( acc_dispatch_id          ),
       .ready_wb_i                   ( ready_wb                 ),
       .outstanding_load_wb_i        ( outstanding_load_wb      ),
       .outstanding_store_wb_i       ( outstanding_store_wb     ),
@@ -663,6 +668,11 @@ module ibex_core #(
       .perf_mul_wait_o              ( perf_mul_wait            ),
       .perf_div_wait_o              ( perf_div_wait            ),
       .instr_id_done_o              ( instr_id_done            ),
+
+      .instr_rs1_id_o               ( instr_rs1_id             ),
+      .instr_rs2_id_o               ( instr_rs2_id             ),
+      .instr_rs3_id_o               ( instr_rs3_id             ),
+      .instr_rd_id_o                ( instr_rd_id              ),
 
       // RISC-V Extension Interface
       .acc_x_q_valid_o              ( acc_x_q_valid_o          ),
@@ -795,7 +805,6 @@ module ibex_core #(
     .pc_id_i                        ( pc_id                        ),
     .instr_is_compressed_id_i       ( instr_is_compressed_id       ),
     .instr_perf_count_id_i          ( instr_perf_count_id          ),
-    .instr_is_offloadwb_id_i        ( instr_is_offloadwb_id        ),
 
     .ready_wb_o                     ( ready_wb                     ),
     .rf_write_wb_o                  ( rf_write_wb                  ),
@@ -821,8 +830,7 @@ module ibex_core #(
     .lsu_resp_valid_i               ( lsu_resp_valid               ),
     .lsu_resp_err_i                 ( lsu_resp_err                 ),
 
-    .instr_done_wb_o                ( instr_done_wb                ),
-    .instr_done_wb_is_offload_o     ( instr_done_wb_is_offload     )
+    .instr_done_wb_o                ( instr_done_wb                )
   );
 
   ///////////////////////
@@ -1216,6 +1224,19 @@ module ibex_core #(
 
   logic        rvfi_stage_valid_d   [RVFI_STAGES];
 
+  logic [31:0] rvfi_offl_rs1_rdata[32];
+  logic [31:0] rvfi_offl_rs2_rdata[32];
+  logic [31:0] rvfi_offl_rs3_rdata[32];
+  logic [31:0] rvfi_offl_rs1_addr[32];
+  logic [31:0] rvfi_offl_rs2_addr[32];
+  logic [31:0] rvfi_offl_rs3_addr[32];
+  logic [31:0] rvfi_offl_insn[32];
+  logic [31:0] rvfi_offl_pc_rdata[32];
+  logic [31:0] rvfi_offl_pc_wdata[32];
+  logic [64:0] rvfi_offl_order[32];
+  logic [1:0] rvfi_offl_mode[32];
+  logic [1:0] rvfi_offl_ixl[32];
+
   assign rvfi_valid     = rvfi_stage_valid    [RVFI_STAGES-1];
   assign rvfi_order     = rvfi_stage_order    [RVFI_STAGES-1];
   assign rvfi_insn      = rvfi_stage_insn     [RVFI_STAGES-1];
@@ -1276,6 +1297,43 @@ module ibex_core #(
     assign rvfi_instr_new_wb = instr_new_id;
   end
 
+  logic [63:0] rvfi_order_id_d;
+  logic [63:0] rvfi_order_id_q;
+
+  assign rvfi_order_id_d = rvfi_order_id_q + 64'h1;
+  always_ff @(posedge clk or negedge rst_ni) begin
+    if (!rst_ni) begin
+      rvfi_order_id_q <= 1'b0;
+    end else begin
+      if (acc_dispatch_id | rvfi_stage_valid_d[0]) begin
+        rvfi_order_id_q <= rvfi_order_id_d;
+      end
+    end
+  end
+
+  if (XInterface) begin : gen_rvfi_xintf
+    // Record the metadata of offloaded instructions, that writeback to the
+    // integer register file. those will appear in the core trace log.
+    always_ff @(posedge clk) begin
+      // make this infer SRAM primitives on FPGAs
+      // therefore no reset block
+      if (acc_dispatch_id) begin
+        rvfi_offl_rs1_rdata[instr_rd_id] <= acc_x_q_rs1_o;
+        rvfi_offl_rs2_rdata[instr_rd_id] <= acc_x_q_rs2_o;
+        rvfi_offl_rs3_rdata[instr_rd_id] <= acc_x_q_rs3_o;
+        rvfi_offl_rs1_addr[instr_rd_id]  <= instr_rs1_id;
+        rvfi_offl_rs2_addr[instr_rd_id]  <= instr_rs2_id;
+        rvfi_offl_rs3_addr[instr_rd_id]  <= instr_rs3_id;
+        rvfi_offl_insn[instr_rd_id]      <= rvfi_insn_id;
+        rvfi_offl_pc_rdata[instr_rd_id]  <= pc_id;
+        rvfi_offl_pc_wdata[instr_rd_id]  <= pc_if;
+        rvfi_offl_order[instr_rd_id]     <= rvfi_order_id_d;
+        rvfi_offl_mode[instr_rd_id]      <= {priv_mode_id};
+        rvfi_offl_ixl[instr_rd_id]       <= CSR_MISA_MXL;
+      end
+    end
+  end
+
   for (genvar i = 0;i < RVFI_STAGES; i = i + 1) begin : g_rvfi_stages
     always_ff @(posedge clk or negedge rst_ni) begin
       if (!rst_ni) begin
@@ -1310,7 +1368,7 @@ module ibex_core #(
             rvfi_stage_halt[i]      <= '0;
             rvfi_stage_trap[i]      <= illegal_insn_id;
             rvfi_stage_intr[i]      <= rvfi_intr_d;
-            rvfi_stage_order[i]     <= rvfi_stage_order[i] + 64'(rvfi_stage_valid_d[i]);
+            rvfi_stage_order[i]     <= rvfi_order_id_d;
             rvfi_stage_insn[i]      <= rvfi_insn_id;
             rvfi_stage_mode[i]      <= {priv_mode_id};
             rvfi_stage_ixl[i]       <= CSR_MISA_MXL;
@@ -1324,15 +1382,37 @@ module ibex_core #(
             rvfi_stage_rs1_rdata[i] <= rvfi_rs1_data_d;
             rvfi_stage_rs2_rdata[i] <= rvfi_rs2_data_d;
             rvfi_stage_rs3_rdata[i] <= rvfi_rs3_data_d;
+            rvfi_stage_mem_wdata[i] <= rvfi_mem_wdata_d;
+            rvfi_stage_mem_addr[i]  <= rvfi_mem_addr_d;
             rvfi_stage_rd_addr[i]   <= rvfi_rd_addr_d;
             rvfi_stage_rd_wdata[i]  <= rvfi_rd_wdata_d;
             rvfi_stage_mem_rdata[i] <= rvfi_mem_rdata_d;
-            rvfi_stage_mem_wdata[i] <= rvfi_mem_wdata_d;
-            rvfi_stage_mem_addr[i]  <= rvfi_mem_addr_d;
+          end else if(acc_writeback_id) begin
+            rvfi_stage_halt[i]      <= '0;
+            rvfi_stage_trap[i]      <= '0;
+            rvfi_stage_intr[i]      <= '0;
+            rvfi_stage_order[i]     <= rvfi_offl_order[acc_x_p_rd_i];
+            rvfi_stage_insn[i]      <= rvfi_offl_insn[acc_x_p_rd_i];
+            rvfi_stage_mode[i]      <= rvfi_offl_mode[acc_x_p_rd_i];
+            rvfi_stage_ixl[i]       <= rvfi_offl_ixl[acc_x_p_rd_i];
+            rvfi_stage_rs1_addr[i]  <= rvfi_offl_rs1_addr[acc_x_p_rd_i];
+            rvfi_stage_rs2_addr[i]  <= rvfi_offl_rs2_addr[acc_x_p_rd_i];
+            rvfi_stage_rs3_addr[i]  <= rvfi_offl_rs3_addr[acc_x_p_rd_i];
+            rvfi_stage_pc_rdata[i]  <= rvfi_offl_pc_rdata[acc_x_p_rd_i];
+            rvfi_stage_pc_wdata[i]  <= rvfi_offl_pc_wdata[acc_x_p_rd_i];
+            rvfi_stage_mem_rmask[i] <= '0;
+            rvfi_stage_mem_wmask[i] <= '0;
+            rvfi_stage_rs1_rdata[i] <= rvfi_offl_rs1_rdata[acc_x_p_rd_i];
+            rvfi_stage_rs2_rdata[i] <= rvfi_offl_rs2_rdata[acc_x_p_rd_i];
+            rvfi_stage_rs3_rdata[i] <= rvfi_offl_rs3_rdata[acc_x_p_rd_i];
+            rvfi_stage_mem_wdata[i] <= '0;
+            rvfi_stage_mem_addr[i]  <= '0;
+            rvfi_stage_rd_addr[i]   <= rvfi_rd_addr_d;
+            rvfi_stage_rd_wdata[i]  <= rvfi_rd_wdata_d;
+            rvfi_stage_mem_rdata[i] <= rvfi_mem_rdata_d;
           end
         end else begin
           if(instr_done_wb) begin
-            if (instr_done_wb_type == WB
             rvfi_stage_halt[i]      <= rvfi_stage_halt[i-1];
             rvfi_stage_trap[i]      <= rvfi_stage_trap[i-1];
             rvfi_stage_intr[i]      <= rvfi_stage_intr[i-1];

@@ -748,5 +748,7 @@
   rtl_params:
     XInterface: 1
     XInterfaceTernaryOps: 1
+  compare_opts:
+    in_order_mode: 0
 
 

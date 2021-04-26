@@ -171,7 +171,8 @@ module ibex_id_stage #(
     output  logic                     en_wb_o,
     output  ibex_pkg::wb_instr_type_e instr_type_wb_o,
     output  logic                     instr_perf_count_id_o,
-    output  logic                     instr_is_offload_wb_o,
+    output  logic                     acc_dispatch_o,
+    output  logic                     acc_writeback_o,
     input logic                       ready_wb_i,
     input logic                       outstanding_load_wb_i,
     input logic                       outstanding_store_wb_i,
@@ -185,6 +186,11 @@ module ibex_id_stage #(
     output logic                      perf_mul_wait_o,
     output logic                      perf_div_wait_o,
     output logic                      instr_id_done_o,
+
+    output logic [4:0]                instr_rs1_id_o,
+    output logic [4:0]                instr_rs2_id_o,
+    output logic [4:0]                instr_rs3_id_o,
+    output logic [4:0]                instr_rd_id_o,
 
     // RISC-V Extension Interface
     output logic                      acc_x_q_valid_o,
@@ -313,68 +319,65 @@ module ibex_id_stage #(
   // TODO: Assign '0 if XInterface not used.
   logic imd_val_we_acc;
   logic acc_offl_done;
-  logic acc_writeback;
   logic acc_illegal;
   logic [31:0] rf_wdata_acc;
   logic acc_use_rs3;
-  logic acc_dispatch;
   logic acc_insn_spec;
 
   assign rf_ren_a_o = rf_ren_a_dec || (XInterface && illegal_insn_dec);
   assign rf_ren_b_o = rf_ren_b_dec || (XInterface && illegal_insn_dec);
-  assign rf_wdata_sel = acc_writeback ? RF_WD_ACC : rf_wdata_sel_dec;
-  assign instr_is_offload_wb = acc_writeback;
+  assign rf_wdata_sel = acc_writeback_o ? RF_WD_ACC : rf_wdata_sel_dec;
 
-  if (XInterface) begin : gen_x_intf
-    logic acc_rs1_flop;
-    logic unused_acc_x_p_error;
-    assign unused_acc_x_p_error = acc_x_p_error_i;
-
-
-
+  if (XInterface) begin : gen_xintf
+    logic        acc_rs1_flop;
+    logic        unused_acc_x_p_error;
     logic [31:0] scoreboard_d, scoreboard_q;
-
-    logic rf_rdata_a_valid;
-    logic rf_rdata_b_valid;
-
+    logic        rf_rdata_a_valid;
+    logic        rf_rdata_b_valid;
     logic [4:0]  rf_waddr_acc;
 
+    // No use case so far for response error signal. (except for external
+    // mode mem transactions, which we do not support.
+    assign unused_acc_x_p_error = acc_x_p_error_i;
 
     assign acc_x_q_instr_data_o = instr_rdata_i;
 
     // Control signals
 
     // Offload
-
     // This may be an offload instruction
-    assign acc_insn_spec = illegal_insn_dec || illegal_csr_insn_i;
+    assign acc_insn_spec   = (illegal_insn_dec || illegal_csr_insn_i);
 
-    // instr_executing is set iff no possible exceptions in WB Stage
+    // We initiate an offload request, if no possible exceptions in WB Stage.
+    // `instr_executing` guarantees that.
     assign acc_x_q_valid_o = acc_insn_spec & instr_executing & ~flush_id;
 
-    assign acc_offl_done     = acc_x_q_valid_o && acc_x_q_ready_i;
+    assign acc_offl_done   = acc_x_q_valid_o && acc_x_q_ready_i;
 
-    assign acc_dispatch = acc_offl_done && acc_x_k_accept_i;
-    assign acc_illegal  = acc_offl_done && !acc_x_k_accept_i;
+    assign acc_dispatch_o = acc_offl_done && acc_x_k_accept_i;
+    assign acc_illegal    = acc_offl_done && !acc_x_k_accept_i;
 
-    assign rf_waddr_id_o       = acc_writeback ? rf_waddr_acc : rf_waddr_dec;
+    assign rf_waddr_id_o       = acc_writeback_o ? rf_waddr_acc : rf_waddr_dec;
 
-    // Writeback
+    // Writeback, if no internal instruction is trying to write back and if
+    // there is no outstanding load or store (
+    assign acc_writeback_o = ready_wb_i &
+                             ~(instr_done & ~acc_offl_done) &
+                             ~(outstanding_load_wb_i | outstanding_store_wb_i) &
+                             acc_x_p_valid_i;
 
-    // just use the wb stage, if it is not occupied:
-    // An instruction is done, but not offloaded.
-    assign acc_writeback = ready_wb_i & ~(instr_done & ~acc_offl_done) & ~(outstanding_load_wb_i | outstanding_store_wb_i)  & acc_x_p_valid_i;
-    assign acc_x_p_ready_o = acc_writeback;
+    // Acknowledge response transaction.
+    assign acc_x_p_ready_o = acc_writeback_o;
 
     assign rf_waddr_acc = acc_x_p_rd_i;
 
     // Scoreboard: keep track of rd dependencies of offloaded instructions
     always_comb begin
       scoreboard_d = scoreboard_q;
-      if (acc_dispatch) begin
+      if (acc_dispatch_o) begin
         scoreboard_d[rf_waddr_dec] = acc_x_k_writeback_i;
       end
-      if (acc_writeback) begin
+      if (acc_writeback_o) begin
         scoreboard_d[rf_waddr_acc] = 1'b0;
       end
       scoreboard_d[0] = 1'b0;
@@ -397,13 +400,15 @@ module ibex_id_stage #(
     // registers are actually used. If so, the core is stalled by the adapter
     // by delayed assertion of acc_x_ready_i.
     // stall_acc_wb is asserted only for internally decodable instructions.
-    assign stall_acc_wb = ((scoreboard_q[rf_raddr_a_o] && rf_ren_a_o) ||
-                           (scoreboard_q[rf_raddr_b_o] && rf_ren_b_o)) &&
-                          !acc_insn_spec;
-
-    assign acc_rs1_flop = XInterfaceTernaryOps ?
-                            instr_executing_spec && acc_insn_spec && rf_rdata_a_valid :
-                            1'b0;
+    // TODO: the write-after-write prevention is slightly too conservative. Could
+    // stall only once it is done and will write in the next cycle. however,
+    // rf_we_raw depends upon instr_executing, which depends on stall_acc_Wb ->
+    // zero-delay loop. there is probably a better way to do this.
+    assign stall_acc_wb =
+        wfi_insn_dec ? |scoreboard_q : ((scoreboard_q[rf_raddr_a_o] && rf_ren_a_o) ||
+                                        (scoreboard_q[rf_raddr_b_o] && rf_ren_b_o) ||
+                                        (scoreboard_q[rf_waddr_dec] && rf_we_dec)) &&
+                                       !acc_insn_spec;
 
 
     // Accelerator writeback
@@ -415,6 +420,11 @@ module ibex_id_stage #(
 
     typedef enum logic { StIdle, StGetRs3 } xintf_offl_fsm_e;
     xintf_offl_fsm_e xintf_offl_fsm_q, xintf_offl_fsm_d;
+
+    // We save rs1 to the imd_val_reg, once the read value is valid.
+    assign acc_rs1_flop = XInterfaceTernaryOps ?
+                            instr_executing_spec && acc_insn_spec && rf_rdata_a_valid :
+                            1'b0;
 
     // Accelerator offload FSM
     always_comb begin
@@ -469,6 +479,42 @@ module ibex_id_stage #(
     end
 
   end else begin : gen_no_xintf
+    logic        unused_acc_x_q_ready;
+    logic        unused_acc_x_k_writeback;
+    logic        unused_acc_x_k_accept;
+    logic        unused_acc_x_p_valid;
+    logic [4:0]  unused_acc_x_p_rd;
+    logic [31:0] unused_acc_x_p_data;
+    logic        unused_acc_x_p_error;
+
+    assign unused_acc_x_q_ready     = acc_x_q_ready_i;
+    assign unused_acc_x_k_writeback = acc_x_k_writeback_i;
+    assign unused_acc_x_k_accept    = acc_x_k_accept_i;
+    assign unused_acc_x_p_valid     = acc_x_p_valid_i;
+    assign unused_acc_x_p_rd        = acc_x_p_rd_i;
+    assign unused_acc_x_p_data      = acc_x_p_data_i;
+    assign unused_acc_x_p_error     = acc_x_p_error_i;
+
+    assign acc_x_q_valid_o      = '0;
+    assign acc_x_q_instr_data_o = '0;
+    assign acc_x_q_rs1_o        = '0;
+    assign acc_x_q_rs2_o        = '0;
+    assign acc_x_q_rs3_o        = '0;
+    assign acc_x_q_rs_valid_o   = '0;
+    assign acc_x_q_rd_clean_o   = '0;
+    assign acc_x_p_ready_o      = '0;
+
+    assign acc_offl_done = 1'b0;
+    assign acc_illegal = 1'b0;
+    assign acc_dispatch_o = 1'b0;
+    assign acc_writeback_o = 1'b0;
+    assign imd_val_we_acc = 1'b0;
+    assign rf_wdata_acc = '0;
+    assign acc_use_rs3 = 1'b0;
+    assign acc_insn_spec = 1'b0;
+    assign rf_wdata_sel = rf_wdata_sel_dec;
+
+
     // TODO
   end
 
@@ -574,21 +620,27 @@ module ibex_id_stage #(
   // TODO: Assert that imd_val_we_acc and imd_val_we_ex_i are never both high
 
   always_comb begin
-    if (imd_val_we_acc) begin
-      imd_val_d = '{default: '0};
-      imd_val_d[0][31:0] = rf_rdata_a_i;
-    end else begin
-      imd_val_d = imd_val_d_ex_i;
-    end
+    imd_val_d = imd_val_q;
+    unique case(1'b1)
+      |imd_val_we_ex_i: begin
+        imd_val_d = imd_val_d_ex_i;
+      end
+      imd_val_we_acc: begin
+        imd_val_d = '{default: '0};
+        imd_val_d[0][31:0] = rf_rdata_a_i;
+      end
+      default: begin
+        imd_val_d = imd_val_q;
+      end
+    endcase
   end
 
   for (genvar i=0; i<2; i++) begin : gen_intermediate_val_reg
     always_ff @(posedge clk_i or negedge rst_ni) begin : intermediate_val_reg
       if (!rst_ni) begin
         imd_val_q[i] <= '0;
-      end else if (imd_val_we_ex_i[i] || imd_val_we_acc) begin
+      end else begin
         imd_val_q[i] <= imd_val_d[i];
-        imd_val_q[i] <= imd_val_d_ex_i[i];
       end
     end
   end
@@ -600,7 +652,7 @@ module ibex_id_stage #(
   ///////////////////////
 
   // Suppress register write if there is an illegal CSR access or instruction is not executing
-  assign rf_we_id_o = (rf_we_raw & instr_executing & ~illegal_csr_insn_i) | acc_writeback;
+  assign rf_we_id_o = (rf_we_raw & instr_executing & ~illegal_csr_insn_i) | acc_writeback_o;
 
   // Register file write data mux
   always_comb begin : rf_wdata_id_mux
@@ -696,7 +748,11 @@ module ibex_id_stage #(
       .branch_in_dec_o                 ( branch_in_dec        ),
 
       // agnostic ternary ops
-      .acc_use_rs3_i                   ( acc_use_rs3          )
+      .acc_use_rs3_i                   ( acc_use_rs3          ),
+      .instr_rd_o                      ( instr_rd_id_o        ),
+      .instr_rs1_o                     ( instr_rs1_id_o       ),
+      .instr_rs2_o                     ( instr_rs2_id_o       ),
+      .instr_rs3_o                     ( instr_rs3_id_o       )
   );
 
   /////////////////////////////////
@@ -1177,12 +1233,12 @@ module ibex_id_stage #(
 
     assign stall_ld_hz = outstanding_load_wb_i & (rf_rd_a_hz | rf_rd_b_hz);
 
-    assign instr_type_wb_o = (~lsu_req_dec | acc_writeback) ? WB_INSTR_OTHER :
-                              lsu_we                        ? WB_INSTR_STORE :
-                                                              WB_INSTR_LOAD;
+    assign instr_type_wb_o = (~lsu_req_dec | acc_writeback_o) ? WB_INSTR_OTHER :
+                              lsu_we                          ? WB_INSTR_STORE :
+                                                                WB_INSTR_LOAD;
 
-    // TODO: this also covers acc_writeback. may not be what we want upstream.
-    assign instr_id_done_o = en_wb_o & ready_wb_i & ~acc_writeback;
+    // TODO: this also covers acc_writeback_o. may not be what we want upstream.
+    assign instr_id_done_o = en_wb_o & ready_wb_i & ~acc_writeback_o;
 
     // Stall ID/EX as instruction in ID/EX cannot proceed to writeback yet
     assign stall_wb = en_wb_o & ~ready_wb_i;
@@ -1193,7 +1249,9 @@ module ibex_id_stage #(
     assign rf_rd_a_hz = 1'b0;
     assign rf_rd_b_hz = 1'b0;
 
-    assign multicycle_done = lsu_req_dec ? lsu_resp_valid_i : (ex_valid_i || acc_offl_done);
+    assign multicycle_done = lsu_req_dec   ? lsu_resp_valid_i :
+                             acc_insn_spec ? acc_offl_done :
+                                             ex_valid_i;
 
     assign data_req_allowed = instr_first_cycle;
 
@@ -1247,7 +1305,7 @@ module ibex_id_stage #(
 
     assign perf_dside_wait_o = instr_executing & lsu_req_dec & ~lsu_resp_valid_i;
 
-    assign instr_id_done_o = instr_done;
+    assign instr_id_done_o = instr_done & ~acc_offl_done;
   end
 
   // Signal which instructions to count as retired in minstret, all traps along with ebrk and
@@ -1258,7 +1316,7 @@ module ibex_id_stage #(
   // An instruction is ready to move to the writeback stage (or retire if there is no writeback
   // stage)
   // Offloaded instructions enters writeback once the response is received.
-  assign en_wb_o = (instr_done & !acc_offl_done) | acc_writeback;
+  assign en_wb_o = (instr_done & !acc_offl_done) | acc_writeback_o;
 
   assign perf_mul_wait_o = stall_multdiv & mult_en_dec;
   assign perf_div_wait_o = stall_multdiv & div_en_dec;

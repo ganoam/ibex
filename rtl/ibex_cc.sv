@@ -334,6 +334,8 @@ module ibex_cc #(
     .acc_cmem_slv_rsp_o      ( acc_cmem_rsp         )
   );
 
+  assign acc_c_rsp[0].p.hart_id = hart_id_i;
+
   rvb_full #(
     .XLEN ( 32 )
   ) acc_rvb_i (
