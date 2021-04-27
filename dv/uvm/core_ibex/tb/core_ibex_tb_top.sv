@@ -90,6 +90,7 @@ module core_ibex_tb_top;
   logic [ 2:0] acc_x_q_rs_valid;
   logic        acc_x_q_rd_clean;
   logic        acc_x_k_writeback;
+  logic        acc_x_k_is_mem_op;
   logic        acc_x_k_accept;
 
   logic        acc_x_p_valid;
@@ -161,6 +162,7 @@ module core_ibex_tb_top;
     .acc_x_q_rs_valid_o   (acc_x_q_rs_valid     ),
     .acc_x_q_rd_clean_o   (acc_x_q_rd_clean     ),
     .acc_x_k_writeback_i  (acc_x_k_writeback    ),
+    .acc_x_k_is_mem_op_i  (acc_x_k_is_mem_op    ),
     .acc_x_k_accept_i     (acc_x_k_accept       ),
 
     .acc_x_p_valid_i      (acc_x_p_valid        ),
@@ -189,6 +191,7 @@ module core_ibex_tb_top;
 
   assign acc_x_q_ready     = acc_x_rsp.q_ready;
   assign acc_x_k_writeback = acc_x_rsp.k.writeback[0];
+  assign acc_x_k_is_mem_op = acc_x_rsp.k.is_mem_op;
   assign acc_x_k_accept    = acc_x_rsp.k.accept;
 
 

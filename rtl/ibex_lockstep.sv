@@ -97,6 +97,7 @@ module ibex_lockstep import ibex_pkg::*; #(
     input  logic [ 2:0]                  acc_x_q_rs_valid_i,
     input  logic                         acc_x_q_rd_clean_i,
     input  logic                         acc_x_k_writeback_i,
+    input  logic                         acc_x_k_is_mem_op_i,
     input  logic                         acc_x_k_accept_i,
 
     input  logic                         acc_x_p_valid_i,
@@ -164,6 +165,7 @@ module ibex_lockstep import ibex_pkg::*; #(
     logic                        debug_req;
     logic                        acc_x_q_ready;
     logic                        acc_x_k_writeback;
+    logic                        acc_x_k_is_mem_op;
     logic                        acc_x_k_accept;
     logic                        acc_x_p_valid;
     logic [4:0]                  acc_x_p_rd;
@@ -196,6 +198,7 @@ module ibex_lockstep import ibex_pkg::*; #(
   assign shadow_inputs_in.debug_req         = debug_req_i;
   assign shadow_inputs_in.acc_x_q_ready     = acc_x_q_ready_i;
   assign shadow_inputs_in.acc_x_k_writeback = acc_x_k_writeback_i;
+  assign shadow_inputs_in.acc_x_k_is_mem_op = acc_x_k_is_mem_op_i;
   assign shadow_inputs_in.acc_x_k_accept    = acc_x_k_accept_i;
   assign shadow_inputs_in.acc_x_p_valid     = acc_x_p_valid_i;
   assign shadow_inputs_in.acc_x_p_rd        = acc_x_p_rd_i;
@@ -391,6 +394,7 @@ module ibex_lockstep import ibex_pkg::*; #(
     .acc_x_q_rs_valid_o   (shadow_outputs.acc_x_q_rs_valid),
     .acc_x_q_rd_clean_o   (shadow_outputs.acc_x_q_rd_clean),
     .acc_x_k_writeback_i  (shadow_inputs_q[0].acc_x_k_writeback),
+    .acc_x_k_is_mem_op_i  (shadow_inputs_q[0].acc_x_k_is_mem_op),
     .acc_x_k_accept_i     (shadow_inputs_q[0].acc_x_k_accept),
 
     .acc_x_p_valid_i      (shadow_inputs_q[0].acc_x_p_valid),

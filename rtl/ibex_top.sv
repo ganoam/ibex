@@ -85,6 +85,7 @@ module ibex_top #(
     output logic [ 2:0]                  acc_x_q_rs_valid_o,
     output logic                         acc_x_q_rd_clean_o,
     input  logic                         acc_x_k_writeback_i,
+    input  logic                         acc_x_k_is_mem_op_i,
     input  logic                         acc_x_k_accept_i,
 
     input  logic                         acc_x_p_valid_i,
@@ -298,6 +299,7 @@ module ibex_top #(
     .acc_x_q_rs_valid_o,
     .acc_x_q_rd_clean_o,
     .acc_x_k_writeback_i,
+    .acc_x_k_is_mem_op_i,
     .acc_x_k_accept_i,
 
     .acc_x_p_valid_i,
@@ -568,6 +570,7 @@ module ibex_top #(
     logic [ 2:0]                  acc_x_q_rs_valid_local;
     logic                         acc_x_q_rd_clean_local;
     logic                         acc_x_k_writeback_local;
+    logic                         acc_x_k_is_mem_op_local;
     logic                         acc_x_k_accept_local;
 
     logic                         acc_x_p_valid_local;
@@ -629,6 +632,7 @@ module ibex_top #(
       acc_x_q_rs_valid_o,
       acc_x_q_rd_clean_o,
       acc_x_k_writeback_i,
+      acc_x_k_is_mem_op_i,
       acc_x_k_accept_i,
 
       acc_x_p_valid_i,
@@ -690,6 +694,7 @@ module ibex_top #(
       acc_x_q_rs_valid_local,
       acc_x_q_rd_clean_local,
       acc_x_k_writeback_local,
+      acc_x_k_is_mem_op_local,
       acc_x_k_accept_local,
 
       acc_x_p_valid_local,
@@ -816,6 +821,7 @@ module ibex_top #(
       .acc_x_q_rs_valid_o   (acc_x_q_rs_valid_local),
       .acc_x_q_rd_clean_o   (acc_x_q_rd_clean_local),
       .acc_x_k_writeback_i  (acc_x_k_writeback_local),
+      .acc_x_k_is_mem_op_i  (acc_x_k_is_mem_op_local),
       .acc_x_k_accept_i     (acc_x_k_accept_local),
 
       .acc_x_p_valid_i      (acc_x_p_valid_local),

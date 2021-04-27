@@ -81,6 +81,7 @@ module ibex_top_tracing #(
     output logic [ 2:0]                  acc_x_q_rs_valid_o,
     output logic                         acc_x_q_rd_clean_o,
     input  logic                         acc_x_k_writeback_i,
+    input  logic                         acc_x_k_is_mem_op_i,
     input  logic                         acc_x_k_accept_i,
 
     input  logic                         acc_x_p_valid_i,
@@ -195,6 +196,7 @@ module ibex_top_tracing #(
     .acc_x_q_rs_valid_o,
     .acc_x_q_rd_clean_o,
     .acc_x_k_writeback_i,
+    .acc_x_k_is_mem_op_i,
     .acc_x_k_accept_i,
 
     .acc_x_p_valid_i,

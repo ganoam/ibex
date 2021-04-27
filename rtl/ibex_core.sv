@@ -13,32 +13,32 @@
  * Top level module of the ibex RISC-V core
  */
 module ibex_core import ibex_pkg::*; #(
-    parameter bit          PMPEnable         = 1'b0,
-    parameter int unsigned PMPGranularity    = 0,
-    parameter int unsigned PMPNumRegions     = 4,
-    parameter int unsigned MHPMCounterNum    = 0,
-    parameter int unsigned MHPMCounterWidth  = 40,
-    parameter bit          RV32E             = 1'b0,
-    parameter rv32m_e      RV32M             = RV32MFast,
-    parameter rv32b_e      RV32B             = RV32BNone,
-    parameter bit          BranchTargetALU   = 1'b0,
-    parameter bit          WritebackStage    = 1'b0,
-    parameter bit          ICache            = 1'b0,
-    parameter bit          ICacheECC         = 1'b0,
-    parameter int unsigned BusSizeECC        = BUS_SIZE,
-    parameter int unsigned TagSizeECC        = IC_TAG_SIZE,
-    parameter int unsigned LineSizeECC       = IC_LINE_SIZE,
-    parameter bit          BranchPredictor   = 1'b0,
-    parameter bit          DbgTriggerEn      = 1'b0,
-    parameter int unsigned DbgHwBreakNum     = 1,
-    parameter bit          SecureIbex        = 1'b0,
-    parameter bit          DummyInstructions = 1'b0,
-    parameter bit          RegFileECC        = 1'b0,
-    parameter int unsigned RegFileDataWidth  = 32,
-    parameter int unsigned DmHaltAddr        = 32'h1A110800,
-    parameter int unsigned DmExceptionAddr   = 32'h1A110808,
-    parameter bit          XInterface              = 1'b0,
-    parameter bit          XInterfaceTernaryOps    = 1'b0
+    parameter bit          PMPEnable            = 1'b0,
+    parameter int unsigned PMPGranularity       = 0,
+    parameter int unsigned PMPNumRegions        = 4,
+    parameter int unsigned MHPMCounterNum       = 0,
+    parameter int unsigned MHPMCounterWidth     = 40,
+    parameter bit          RV32E                = 1'b0,
+    parameter rv32m_e      RV32M                = RV32MFast,
+    parameter rv32b_e      RV32B                = RV32BNone,
+    parameter bit          BranchTargetALU      = 1'b0,
+    parameter bit          WritebackStage       = 1'b0,
+    parameter bit          ICache               = 1'b0,
+    parameter bit          ICacheECC            = 1'b0,
+    parameter int unsigned BusSizeECC           = BUS_SIZE,
+    parameter int unsigned TagSizeECC           = IC_TAG_SIZE,
+    parameter int unsigned LineSizeECC          = IC_LINE_SIZE,
+    parameter bit          BranchPredictor      = 1'b0,
+    parameter bit          DbgTriggerEn         = 1'b0,
+    parameter int unsigned DbgHwBreakNum        = 1,
+    parameter bit          SecureIbex           = 1'b0,
+    parameter bit          DummyInstructions    = 1'b0,
+    parameter bit          RegFileECC           = 1'b0,
+    parameter int unsigned RegFileDataWidth     = 32,
+    parameter int unsigned DmHaltAddr           = 32'h1A110800,
+    parameter int unsigned DmExceptionAddr      = 32'h1A110808,
+    parameter bit          XInterface           = 1'b0,
+    parameter bit          XInterfaceTernaryOps = 1'b0
 ) (
     // Clock and Reset
     input  logic                         clk_i,
@@ -110,6 +110,7 @@ module ibex_core import ibex_pkg::*; #(
     output logic [ 2:0]                  acc_x_q_rs_valid_o,
     output logic                         acc_x_q_rd_clean_o,
     input  logic                         acc_x_k_writeback_i,
+    input  logic                         acc_x_k_is_mem_op_i,
     input  logic                         acc_x_k_accept_i,
 
     input  logic                         acc_x_p_valid_i,
@@ -358,10 +359,10 @@ module ibex_core import ibex_pkg::*; #(
   logic        perf_load;
   logic        perf_store;
 
-  logic [4:0] instr_rs1_id;
-  logic [4:0] instr_rs2_id;
-  logic [4:0] instr_rs3_id;
-  logic [4:0] instr_rd_id;
+  logic [4:0]  instr_rs1_id;
+  logic [4:0]  instr_rs2_id;
+  logic [4:0]  instr_rs3_id;
+  logic [4:0]  instr_rd_id;
 
   // for RVFI
   logic        illegal_insn_id, unused_illegal_insn_id; // ID stage sees an illegal instruction
@@ -681,6 +682,7 @@ module ibex_core import ibex_pkg::*; #(
       .acc_x_q_rs_valid_o           ( acc_x_q_rs_valid_o       ),
       .acc_x_q_rd_clean_o           ( acc_x_q_rd_clean_o       ),
       .acc_x_k_writeback_i          ( acc_x_k_writeback_i      ),
+      .acc_x_k_is_mem_op_i          ( acc_x_k_is_mem_op_i      ),
       .acc_x_k_accept_i             ( acc_x_k_accept_i         ),
 
       .acc_x_p_valid_i              ( acc_x_p_valid_i          ),
@@ -1168,8 +1170,8 @@ module ibex_core import ibex_pkg::*; #(
   logic [31:0] rvfi_offl_pc_rdata[32];
   logic [31:0] rvfi_offl_pc_wdata[32];
   logic [64:0] rvfi_offl_order[32];
-  logic [1:0] rvfi_offl_mode[32];
-  logic [1:0] rvfi_offl_ixl[32];
+  logic [1:0]  rvfi_offl_mode[32];
+  logic [1:0]  rvfi_offl_ixl[32];
 
   assign rvfi_valid     = rvfi_stage_valid    [RVFI_STAGES-1];
   assign rvfi_order     = rvfi_stage_order    [RVFI_STAGES-1];

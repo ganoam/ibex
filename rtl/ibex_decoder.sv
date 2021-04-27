@@ -116,7 +116,6 @@ module ibex_decoder #(
   logic [31:0] instr;
   logic [31:0] instr_alu;
   logic [9:0]  unused_instr_alu;
-  // Source/Destination register instruction index
 
   logic        use_rs3_d;
   logic        use_rs3_q;
@@ -125,7 +124,6 @@ module ibex_decoder #(
 
   opcode_e     opcode;
   opcode_e     opcode_alu;
-
 
   // To help timing the flops containing the current instruction are replicated to reduce fan-out.
   // instr_alu is used to determine the ALU control logic and associated operand/imm select signals
@@ -655,7 +653,6 @@ module ibex_decoder #(
       jump_set_o      = 1'b0;
       branch_in_dec_o = 1'b0;
       csr_access_o    = 1'b0;
-      rf_wdata_sel_o  = RF_WD_ACC;
     end
   end
 
@@ -664,7 +661,6 @@ module ibex_decoder #(
   /////////////////////////////
 
   always_comb begin
-
     alu_operator_o     = ALU_SLTU;
     alu_op_a_mux_sel_o = OP_A_IMM;
     alu_op_b_mux_sel_o = OP_B_IMM;
@@ -678,7 +674,7 @@ module ibex_decoder #(
 
     opcode_alu         = opcode_e'(instr_alu[6:0]);
 
-    use_rs3_d          = acc_use_rs3_i;
+    use_rs3_d          = 1'b0;
     alu_multicycle_o   = 1'b0;
     mult_sel_o         = 1'b0;
     div_sel_o          = 1'b0;

@@ -50,11 +50,6 @@ filesets:
      - lowrisc:tool:check_tool_requirements
 
 parameters:
-  XInterface:
-    datatype: int
-    default: 0
-    paramtype: vlogparam
-
   RVFI:
     datatype: bool
     paramtype: vlogdefine
